@@ -1,15 +1,19 @@
 from typing import TextIO
+import json
+import os
+
 import click
+import pystac
 
-from osc_builder.stac import build_catalog, save_catalog
-
+from .stac import build_catalog, save_catalog
 from .origcsv import (
     load_orig_variables,
     load_orig_themes,
     load_orig_projects,
     load_orig_products,
 )
-
+from .metrics import build_metrics
+from .codelist import build_codelists
 from .io import load_products, load_projects, load_themes, load_variables, store_variables, store_themes, store_projects, store_products
 
 
@@ -53,6 +57,18 @@ def build(data_dir: str, out_dir: str):
     products = load_products(f"{data_dir}/products")
 
     catalog = build_catalog(themes, variables, projects, products)
+
+    os.makedirs(out_dir, exist_ok=True)
+
+    metrics = build_metrics("OSC-Catalog", themes, variables, projects, products)
+    with open(f"{out_dir}/metrics.json", "w") as f:
+        json.dump(metrics, f, indent=4)
+
+    tree = build_codelists(themes, variables, [])
+    tree.write(f"{out_dir}/codelists.xml", pretty_print=True)
+
+    catalog.add_link(pystac.Link(pystac.RelType.ALTERNATE, "./metrics.json", "application/json"))
+    catalog.add_link(pystac.Link(pystac.RelType.ALTERNATE, "./codelists.xml", "application/xml"))
     save_catalog(catalog, out_dir)
 
 

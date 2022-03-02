@@ -320,15 +320,6 @@ def build_catalog(
         'OSC-Catalog',
         href="catalog.json"
     )
-    metrics = build_metrics("OSC-Catalog", themes, variables, projects, products)
-    with open("metrics.json", "w") as f:
-        json.dump(metrics, f, indent=4)
-
-    tree = build_codelists(themes, variables, [])
-    tree.write("codelists.xml", pretty_print=True)
-
-    catalog.add_link(pystac.Link(pystac.RelType.ALTERNATE, "./metrics.json", "application/json"))
-    catalog.add_link(pystac.Link(pystac.RelType.ALTERNATE, "./codelists.xml", "application/xml"))
 
     # create collections/items from given themes, variables, projects and products
     theme_collections = {
@@ -381,7 +372,7 @@ def build_catalog(
 
 def save_catalog(catalog: pystac.Catalog, output_dir: str):
     # output directory handlign
-    os.makedirs(output_dir)
+    os.makedirs(output_dir, exist_ok=True)
     curdir = os.curdir
     os.chdir(output_dir)
 
