@@ -3,6 +3,8 @@ from functools import reduce
 from itertools import groupby
 from typing import Dict, List, TypedDict
 
+from slugify import slugify
+
 from .types import Product, Project, Theme, Variable
 
 
@@ -71,7 +73,7 @@ def build_metrics(
 
     # mapping: theme -> variable metrics
     variable_metrics: Dict[str, List[VariableMetrics]] = {
-        theme_name: [
+        slugify(theme_name): [
             {
                 "name": variable.name,
                 "description": variable.description,
@@ -88,7 +90,11 @@ def build_metrics(
             }
             for variable in theme_variables
         ]
-        for theme_name, theme_variables in groupby(variables, lambda v: v.theme)
+        # groupby needs sorting first in order to work as expected
+        for theme_name, theme_variables in groupby(
+            sorted(variables, key=lambda v: v.theme),
+            lambda v: slugify(v.theme)
+        )
     }
 
     # list of theme metrics
@@ -96,7 +102,7 @@ def build_metrics(
         {
             "name": theme.name,
             "description": theme.description,
-            "image": "...",
+            "image": theme.image,
             "website": theme.link,
             # "technicalOfficer": theme_coll.extra_fields["osc:technical_officer"]["name"],
             "summary": {
@@ -106,11 +112,11 @@ def build_metrics(
                         for variable in variable_metrics.get(theme.name, [])
                     ], set())
                 ),
-                "numberOfProducts": len(theme_product_map.get(theme.name, [])),
-                "numberOfProjects": len(theme_project_map.get(theme.name, [])),
-                "numberOfVariables": len(variable_metrics.get(theme.name, [])),
+                "numberOfProducts": len(theme_product_map.get(slugify(theme.name), [])),
+                "numberOfProjects": len(theme_project_map.get(slugify(theme.name), [])),
+                "numberOfVariables": len(variable_metrics.get(slugify(theme.name), [])),
             },
-            "variables": variable_metrics.get(theme.name, [])
+            "variables": variable_metrics[slugify(theme.name)] #.get(theme.name, [])
         }
         for theme in themes
     ]
