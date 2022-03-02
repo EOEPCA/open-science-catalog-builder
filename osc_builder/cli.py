@@ -50,7 +50,8 @@ def convert(
 @cli.command()
 @click.argument("data_dir", type=str)
 @click.option("--out-dir", "-o", default="dist", type=str)
-def build(data_dir: str, out_dir: str):
+@click.option("--pretty-print/--no-pretty-print", default=True)
+def build(data_dir: str, out_dir: str, pretty_print: bool):
     variables = load_variables(f"{data_dir}/variables")
     themes = load_themes(f"{data_dir}/themes")
     projects = load_projects(f"{data_dir}/projects")
@@ -62,10 +63,10 @@ def build(data_dir: str, out_dir: str):
 
     metrics = build_metrics("OSC-Catalog", themes, variables, projects, products)
     with open(f"{out_dir}/metrics.json", "w") as f:
-        json.dump(metrics, f, indent=4)
+        json.dump(metrics, f, indent=2 if pretty_print else None)
 
     tree = build_codelists(themes, variables, [])
-    tree.write(f"{out_dir}/codelists.xml", pretty_print=True)
+    tree.write(f"{out_dir}/codelists.xml", pretty_print=pretty_print)
 
     catalog.add_link(pystac.Link(pystac.RelType.ALTERNATE, "./metrics.json", "application/json"))
     catalog.add_link(pystac.Link(pystac.RelType.ALTERNATE, "./codelists.xml", "application/xml"))
