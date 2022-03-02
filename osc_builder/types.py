@@ -61,6 +61,7 @@ class Theme:
     name: str
     description: str
     link: str
+    image: Optional[str] = None
 
 
 @dataclass
