@@ -28,6 +28,12 @@ class ThemeSummary(TypedDict):
     numberOfVariables: int
 
 
+class MissionSummary(TypedDict):
+    years: List[int]
+    numberOfProducts: int
+    numberOfVariables: int
+
+
 class VariableMetrics(TypedDict):
     name: str
     description: str
@@ -41,6 +47,11 @@ class ThemeMetrics(TypedDict):
     website: str
     summary: ThemeSummary
     variables: List[VariableMetrics]
+
+
+class MissionMetrics(TypedDict):
+    name: str
+    summary: MissionSummary
 
 
 class GlobalMetrics(TypedDict):
@@ -121,6 +132,32 @@ def build_metrics(
         for theme in themes
     ]
 
+    # mapping: eo_mission -> Product
+    mission_product_map: Dict[str, List[Product]] = {}
+    for product in products:
+        for mission in product.eo_missions:
+            mission_product_map.setdefault(mission, []).append(product)
+
+    mission_metrics: List[MissionMetrics] = [
+        {
+            "name": mission,
+            "summary": {
+                "years": sorted(
+                    reduce(or_, [
+                        set(range(product.start.year, product.end.year + 1))
+                        for product in products
+                        if product.start and product.end
+                    ], set())
+                ),
+                "numberOfProducts": len(products),
+                "numberOfVariables": len(
+                    set(product.variable for product in products)
+                )
+            }
+        }
+        for mission, products in mission_product_map.items()
+    ]
+
     return {
         "id": id,
         "summary": {
@@ -135,5 +172,6 @@ def build_metrics(
             "numberOfVariables": len(variables),
             "numberOfThemes": len(themes),
         },
-        "themes": theme_metrics
+        "themes": theme_metrics,
+        "missions": mission_metrics,
     }
