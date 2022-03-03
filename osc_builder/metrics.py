@@ -1,7 +1,7 @@
 from operator import or_
 from functools import reduce
 from itertools import groupby
-from typing import Dict, List, TypedDict
+from typing import Dict, List, Optional, TypedDict
 
 from slugify import slugify
 
@@ -43,7 +43,7 @@ class VariableMetrics(TypedDict):
 class ThemeMetrics(TypedDict):
     name: str
     description: str
-    image: str
+    image: Optional[str]
     website: str
     summary: ThemeSummary
     variables: List[VariableMetrics]
@@ -58,6 +58,7 @@ class GlobalMetrics(TypedDict):
     id: str
     summary: GlobalSummary
     themes: List[ThemeMetrics]
+    missions: List[MissionMetrics]
 
 
 def build_metrics(
