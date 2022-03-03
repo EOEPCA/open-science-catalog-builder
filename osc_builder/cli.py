@@ -1,3 +1,4 @@
+import shutil
 from typing import TextIO
 import json
 import os
@@ -71,6 +72,12 @@ def build(data_dir: str, out_dir: str, pretty_print: bool):
     catalog.add_link(pystac.Link(pystac.RelType.ALTERNATE, "./metrics.json", "application/json"))
     catalog.add_link(pystac.Link(pystac.RelType.ALTERNATE, "./codelists.xml", "application/xml"))
     save_catalog(catalog, out_dir)
+
+    # copy image directories if they exist
+    for typedir in ["variables", "themes", "projects", "products"]:
+        src_dir = os.path.join(data_dir, typedir, "images")
+        if os.path.isdir(src_dir):
+            print(shutil.copytree(src_dir, os.path.join(out_dir, typedir, "images")))
 
 
 if __name__ == "__main__":

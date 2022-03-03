@@ -1,5 +1,6 @@
 from datetime import date, datetime, time
 import json
+import mimetypes
 import os
 from typing import Generic, List, Optional, TypeVar, Union, cast
 
@@ -84,6 +85,16 @@ class CollectionOSCExtension(OSCExtension[pystac.Collection]):
                 theme.link,
             )
         )
+        if theme.image:
+            self.collection.add_asset(
+                "image",
+                pystac.Asset(
+                    theme.image,
+                    title="image",
+                    roles=["thumbnail"],
+                    media_type=mimetypes.guess_type(theme.image)[0],
+                ),
+            )
 
     def apply_variable(self, variable: Variable):
         self.collection.extra_fields = {
@@ -233,10 +244,14 @@ def product_from_item(item: pystac.Item) -> Product:
         themes=properties[THEMES_PROP],
         access=cast(str, via_links[1].get_href(False)),
         documentation=via_links[2].get_href(False) if len(via_links) >= 3 else None,
-        doi=None, # TODO
+        doi=None,  # TODO
         version=properties.get("version"),
-        start=parse_datetime(properties["start_datetime"]).date() if properties.get("start_datetime") else None,
-        end=parse_datetime(properties["end_datetime"]).date() if properties.get("end_datetime") else None,
+        start=parse_datetime(properties["start_datetime"]).date()
+        if properties.get("start_datetime")
+        else None,
+        end=parse_datetime(properties["end_datetime"]).date()
+        if properties.get("end_datetime")
+        else None,
         geometry=pygeoif.geometry.as_shape(item.geometry) if item.geometry else None,
         region=properties[REGION_PROP],
         # released=,
@@ -271,8 +286,12 @@ def project_from_item(item: pystac.Item) -> Project:
         website=cast(str, via_links[0].get_href(False)),
         eo4_society_link=cast(str, via_links[1].get_href(False)),
         consortium=properties[CONSORTIUM_PROP],
-        start=parse_datetime(properties["start_datetime"]).date() if properties.get("start_datetime") else None,
-        end=parse_datetime(properties["end_datetime"]).date() if properties.get("end_datetime") else None,
+        start=parse_datetime(properties["start_datetime"]).date()
+        if properties.get("start_datetime")
+        else None,
+        end=parse_datetime(properties["end_datetime"]).date()
+        if properties.get("end_datetime")
+        else None,
         technical_officer=Contact(
             properties[TECHNICAL_OFFICER_PROP]["name"],
             properties[TECHNICAL_OFFICER_PROP]["e-mail"],
@@ -315,16 +334,11 @@ def build_catalog(
     projects: List[Project],
     products: List[Product],
 ) -> pystac.Catalog:
-    catalog = pystac.Catalog(
-        'OSC-Catalog',
-        'OSC-Catalog',
-        href="catalog.json"
-    )
+    catalog = pystac.Catalog("OSC-Catalog", "OSC-Catalog", href="catalog.json")
 
     # create collections/items from given themes, variables, projects and products
     theme_collections = {
-        slugify(theme.name): collection_from_theme(theme)
-        for theme in themes
+        slugify(theme.name): collection_from_theme(theme) for theme in themes
     }
 
     variable_collections = {
@@ -332,15 +346,9 @@ def build_catalog(
         for variable in variables
     }
 
-    project_items = [
-        item_from_project(project)
-        for project in projects
-    ]
+    project_items = [item_from_project(project) for project in projects]
 
-    product_items = [
-        item_from_product(product)
-        for product in products
-    ]
+    product_items = [item_from_product(product) for product in products]
 
     # place everything in its accoring collection
     for item in product_items:
@@ -359,7 +367,9 @@ def build_catalog(
                 print(f"Missing theme {theme_name}")
 
     for collection in variable_collections.values():
-        theme_collection = theme_collections.get(slugify(collection.extra_fields[THEME_PROP]))
+        theme_collection = theme_collections.get(
+            slugify(collection.extra_fields[THEME_PROP])
+        )
         if theme_collection:
             theme_collection.add_child(collection)
         else:
@@ -373,7 +383,7 @@ def build_catalog(
 def save_catalog(catalog: pystac.Catalog, output_dir: str):
     # output directory handlign
     os.makedirs(output_dir, exist_ok=True)
-    curdir = os.curdir
+    curdir = os.getcwd()
     os.chdir(output_dir)
 
     catalog.normalize_and_save(
@@ -382,7 +392,7 @@ def save_catalog(catalog: pystac.Catalog, output_dir: str):
         strategy=pystac.layout.CustomLayoutStrategy(
             collection_func=lambda coll, parent_dir, is_root: f"{coll.extra_fields['osc:type'].lower()}s/{slugify(coll.id)}.json",
             item_func=lambda item, parent_dir: f"{item.properties['osc:type'].lower()}s/{item.id}.json",
-        )
+        ),
     )
 
     os.chdir(curdir)
@@ -390,5 +400,3 @@ def save_catalog(catalog: pystac.Catalog, output_dir: str):
 
 def save_raw_products(products: List[Product], output_dir):
     pass
-
-
