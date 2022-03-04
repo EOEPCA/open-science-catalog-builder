@@ -75,7 +75,7 @@ def build_metrics(
     for product in products:
         for theme in product.themes:
             theme_product_map.setdefault(theme, []).append(product)
-        variable_product_map.setdefault(product.variable, []).append(product)
+        variable_product_map.setdefault(slugify(product.variable), []).append(product)
 
     # mapping: theme -> project
     theme_project_map: Dict[str, List[Project]] = {}
@@ -93,11 +93,11 @@ def build_metrics(
                     "years": sorted(
                         reduce(or_, [
                             set(range(product.start.year, product.end.year + 1))
-                            for product in variable_product_map.get(variable.name, [])
+                            for product in variable_product_map.get(slugify(variable.name), [])
                             if product.start and product.end
                         ], set())
                     ),
-                    "numberOfProducts": len(variable_product_map.get(variable.name, []))
+                    "numberOfProducts": len(variable_product_map.get(slugify(variable.name), []))
                 }
             }
             for variable in theme_variables
@@ -121,7 +121,7 @@ def build_metrics(
                 "years": sorted(
                     reduce(or_, [
                         set(variable["summary"]["years"])
-                        for variable in variable_metrics.get(theme.name, [])
+                        for variable in variable_metrics.get(slugify(theme.name), [])
                     ], set())
                 ),
                 "numberOfProducts": len(theme_product_map.get(slugify(theme.name), [])),
