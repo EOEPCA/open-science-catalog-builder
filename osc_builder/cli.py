@@ -15,13 +15,13 @@ from .origcsv import (
 )
 from .metrics import build_metrics
 from .codelist import build_codelists
-from .io import load_products, load_projects, load_themes, load_variables, store_variables, store_themes, store_projects, store_products
-
+from .io import load_products, load_projects, load_themes, load_variables, store_iso_docs, store_variables, store_themes, store_projects, store_products
+from .iso import build_iso_docs
 
 @click.group()
 @click.pass_context
 def cli(ctx):
-    click.echo("cli")
+    pass
 
 
 @cli.command()
@@ -78,6 +78,21 @@ def build(data_dir: str, out_dir: str, pretty_print: bool):
         src_dir = os.path.join(data_dir, typedir, "images")
         if os.path.isdir(src_dir):
             print(shutil.copytree(src_dir, os.path.join(out_dir, typedir, "images")))
+
+
+@cli.command()
+@click.argument("data_dir", type=str)
+@click.option("--out-dir", "-o", default="dist", type=str)
+@click.option("--pretty-print/--no-pretty-print", default=True)
+def build_iso(data_dir: str, out_dir: str, pretty_print: bool):
+    os.makedirs(out_dir, exist_ok=True)
+
+    projects = load_projects(f"{data_dir}/projects")
+    products = load_products(f"{data_dir}/products")
+
+    records = build_iso_docs(projects, products)
+
+    store_iso_docs(records, f"{out_dir}/iso_records")
 
 
 if __name__ == "__main__":
