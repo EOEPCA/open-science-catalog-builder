@@ -71,7 +71,7 @@ def generate_project_metadata(project: Project) -> Tuple[str, str, str]:
     mcf['identification']['abstract'] = project.description
     mcf['identification']['status'] = STATUSES[project.status.value]
 
-    mcf['identification']['keywords']['themes'] = build_theme_keywords(project.themes)  # noqa
+    mcf['identification']['keywords']['themes'] = build_theme_keywords([project.themes])  # noqa
 
     mcf['identification']['keywords']['short-name'] = {
         'keywords': [project.name],
@@ -130,7 +130,7 @@ def generate_product_metadata(product: Product, projects: Dict[str, str]):
         mcf['metadata']['parentidentifier'] = projects[product.project]
 
     mcf['identification']['keywords']['default'] = {
-        'keywords': product.variable,
+        'keywords': [product.variable],
         'keywords_type': 'theme'
     }
 
@@ -142,7 +142,7 @@ def generate_product_metadata(product: Product, projects: Dict[str, str]):
 
     if product.region:
         mcf['identification']['keywords']['region'] = {
-            'keywords': product.region,
+            'keywords': [product.region],
             'keywords_type': 'theme'
         }
 
