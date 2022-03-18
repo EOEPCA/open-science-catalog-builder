@@ -1,8 +1,9 @@
 from datetime import date, datetime, time
-import json
 import mimetypes
 import os
-from typing import Generic, List, Optional, TypeVar, Union, cast
+import os.path
+from typing import Generic, List, Optional, Tuple, TypeVar, Union, cast
+from urllib.parse import urljoin, urlparse, urlunparse
 
 from slugify import slugify
 import pystac
@@ -83,6 +84,7 @@ class CollectionOSCExtension(OSCExtension[pystac.Collection]):
             pystac.Link(
                 pystac.RelType.VIA,
                 theme.link,
+                title="Link",
             )
         )
         if theme.image:
@@ -105,6 +107,7 @@ class CollectionOSCExtension(OSCExtension[pystac.Collection]):
             pystac.Link(
                 pystac.RelType.VIA,
                 variable.link,
+                title="Link",
             )
         )
 
@@ -150,6 +153,7 @@ class ItemOSCExtension(OSCExtension[pystac.Item]):
             pystac.Link(
                 pystac.RelType.VIA,
                 product.access,
+                title="Access",
             )
         )
         if product.documentation:
@@ -157,6 +161,7 @@ class ItemOSCExtension(OSCExtension[pystac.Item]):
                 pystac.Link(
                     pystac.RelType.VIA,
                     product.documentation,
+                    title="Documentation",
                 )
             )
 
@@ -186,12 +191,14 @@ class ItemOSCExtension(OSCExtension[pystac.Item]):
             pystac.Link(
                 pystac.RelType.VIA,
                 project.website,
+                title="Website",
             )
         )
         self.item.add_link(
             pystac.Link(
                 pystac.RelType.VIA,
                 project.eo4_society_link,
+                title="EO4Society Link"
             )
         )
 
@@ -286,12 +293,8 @@ def project_from_item(item: pystac.Item) -> Project:
         website=cast(str, via_links[0].get_href(False)),
         eo4_society_link=cast(str, via_links[1].get_href(False)),
         consortium=properties[CONSORTIUM_PROP],
-        start=parse_datetime(properties["start_datetime"]).date()
-        if properties.get("start_datetime")
-        else None,
-        end=parse_datetime(properties["end_datetime"]).date()
-        if properties.get("end_datetime")
-        else None,
+        start=parse_datetime(properties["start_datetime"]).date(),
+        end=parse_datetime(properties["end_datetime"]).date(),
         technical_officer=Contact(
             properties[TECHNICAL_OFFICER_PROP]["name"],
             properties[TECHNICAL_OFFICER_PROP]["e-mail"],
@@ -305,7 +308,7 @@ def collection_from_theme(theme: Theme) -> pystac.Collection:
         theme.name,
         theme.description,
         extent=pystac.Extent(
-            pystac.SpatialExtent([-180, -90, 180, 90]),
+            pystac.SpatialExtent([-180.0, -90.0, 180.0, 90.0]),
             pystac.TemporalExtent([[None, None]]),
         ),
     )
@@ -319,7 +322,7 @@ def collection_from_variable(variable: Variable) -> pystac.Collection:
         variable.name,
         variable.description,
         extent=pystac.Extent(
-            pystac.SpatialExtent([-180, -90, 180, 90]),
+            pystac.SpatialExtent([-180.0, -90.0, 180.0, 90.0]),
             pystac.TemporalExtent([[None, None]]),
         ),
     )
@@ -333,7 +336,7 @@ def build_catalog(
     variables: List[Variable],
     projects: List[Project],
     products: List[Product],
-) -> pystac.Catalog:
+) -> Tuple[pystac.Catalog, List[Tuple[Project, pystac.Item]], List[Tuple[Product, pystac.Item]]]:
     catalog = pystac.Catalog("OSC-Catalog", "OSC-Catalog", href="catalog.json")
 
     # create collections/items from given themes, variables, projects and products
@@ -377,26 +380,21 @@ def build_catalog(
 
     catalog.add_children(theme_collections.values())
 
-    return catalog
+    return (catalog, list(zip(projects, project_items)), list(zip(products, product_items)))
 
 
-def save_catalog(catalog: pystac.Catalog, output_dir: str):
+def save_catalog(catalog: pystac.Catalog, output_dir: str, root_href: str=""):
     # output directory handlign
     os.makedirs(output_dir, exist_ok=True)
-    curdir = os.getcwd()
-    os.chdir(output_dir)
-
-    catalog.normalize_and_save(
-        "",
-        pystac.CatalogType.SELF_CONTAINED,
+    catalog.normalize_hrefs(
+        root_href,
         strategy=pystac.layout.CustomLayoutStrategy(
-            collection_func=lambda coll, parent_dir, is_root: f"{coll.extra_fields['osc:type'].lower()}s/{slugify(coll.id)}.json",
-            item_func=lambda item, parent_dir: f"{item.properties['osc:type'].lower()}s/{item.id}.json",
+            collection_func=lambda coll, parent_dir, is_root: urljoin(root_href, f"{coll.extra_fields['osc:type'].lower()}s/{slugify(coll.id)}.json"),
+            item_func=lambda item, parent_dir: urljoin(root_href, f"{item.properties['osc:type'].lower()}s/{item.id}.json"),
         ),
     )
-
-    os.chdir(curdir)
-
-
-def save_raw_products(products: List[Product], output_dir):
-    pass
+    catalog.make_all_asset_hrefs_absolute()
+    catalog.save(
+        pystac.CatalogType.ABSOLUTE_PUBLISHED,
+        output_dir,
+    )

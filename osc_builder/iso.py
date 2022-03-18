@@ -1,6 +1,6 @@
 from copy import deepcopy
 from datetime import datetime
-from typing import Dict, List, Tuple
+from typing import List, Optional
 from urllib.parse import urlparse
 
 from pygeometa.schemas.iso19139 import ISO19139OutputSchema
@@ -60,7 +60,7 @@ def build_theme_keywords(themes: list) -> dict:
     return keywords
 
 
-def generate_project_metadata(project: Project) -> Tuple[str, str, str]:
+def generate_project_metadata(project: Project) -> str:
     mcf = deepcopy(MCF_TEMPLATE)
     now = datetime.now().isoformat()
 
@@ -109,12 +109,10 @@ def generate_project_metadata(project: Project) -> Tuple[str, str, str]:
     if project.eo4_society_link:
         mcf['identification']['url'] = project.eo4_society_link
 
-    iso_os = ISO19139OutputSchema()
-    return project.id, project.name, iso_os.write(mcf)
+    return ISO19139OutputSchema().write(mcf)
 
 
-def generate_product_metadata(product: Product, projects: Dict[str, str]):
-
+def generate_product_metadata(product: Product, parent_identifier: Optional[str]) -> str:
     mcf = deepcopy(MCF_TEMPLATE)
     now = datetime.now().isoformat()
 
@@ -125,9 +123,8 @@ def generate_product_metadata(product: Product, projects: Dict[str, str]):
     mcf['identification']['abstract'] = product.description
     mcf['identification']['status'] = STATUSES[product.status.value]
 
-    print(product.project, projects.keys())
-    if product.project in projects:
-        mcf['metadata']['parentidentifier'] = projects[product.project]
+    if parent_identifier:
+        mcf['metadata']['parentidentifier'] = parent_identifier
 
     mcf['identification']['keywords']['default'] = {
         'keywords': [product.variable],
@@ -201,19 +198,4 @@ def generate_product_metadata(product: Product, projects: Dict[str, str]):
     if product.documentation:
         mcf['identification']['url'] = product.documentation
 
-    iso_os = ISO19139_2OutputSchema()
-    return product.id, iso_os.write(mcf)
-
-
-def build_iso_docs(projects: List[Project],
-                   products: List[Product]) -> List[str]:
-    project_isos = [generate_project_metadata(p) for p in projects]
-
-    projects = {}
-
-    for pi in project_isos:
-        projects[pi[1]] = pi[0]
-
-    product_isos = [generate_product_metadata(p, projects) for p in products]
-
-    return project_isos + product_isos
+    return ISO19139_2OutputSchema().write(mcf)
