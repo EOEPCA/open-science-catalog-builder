@@ -47,42 +47,50 @@ def convert_csvs(
     store_products(products, os.path.join(out_dir, "products"))
 
 
-def build_dist(data_dir: str, out_dir: str, pretty_print: bool, root_href: str):
+def build_dist(
+    data_dir: str,
+    out_dir: str,
+    pretty_print: bool,
+    root_href: str,
+    add_iso_metadata: bool = True,
+):
     variables = load_variables(os.path.join(data_dir, "variables"))
     themes = load_themes(os.path.join(data_dir, "themes"))
     projects = load_projects(os.path.join(data_dir, "projects"))
     products = load_products(os.path.join(data_dir, "products"))
 
-    catalog, project_items, product_items = build_catalog(themes, variables, projects, products)
+    catalog, project_items, product_items = build_catalog(
+        themes, variables, projects, products
+    )
 
     # making sure output directories exist
     os.makedirs(os.path.join(out_dir, "projects/iso"))
     os.makedirs(os.path.join(out_dir, "products/iso"))
 
-    project_parent_identifiers = {
-        project.name: project.id
-        for project in projects
-    }
+    project_parent_identifiers = {project.name: project.id for project in projects}
 
-    for project, project_item in project_items:
-        iso_xml = generate_project_metadata(project)
-        href = os.path.join("./iso", f"{project.id}.xml")
-        with open(os.path.join(out_dir, "projects", href), "w") as f:
-            f.write(iso_xml)
-        project_item.add_asset(
-            "iso-metadata", pystac.Asset(href, roles=["metadata"])
-        )
+    if add_iso_metadata:
+        # generate ISO metadata for each project and add it as an asset
+        for project, project_item in project_items:
+            iso_xml = generate_project_metadata(project)
+            href = os.path.join("./iso", f"{project.id}.xml")
+            with open(os.path.join(out_dir, "projects", href), "w") as f:
+                f.write(iso_xml)
+            project_item.add_asset(
+                "iso-metadata", pystac.Asset(href, roles=["metadata"])
+            )
 
-    for product, product_item in product_items:
-        iso_xml = generate_product_metadata(
-            product, project_parent_identifiers.get(product.project)
-        )
-        href = os.path.join("./iso", f"{product.id}.xml")
-        with open(os.path.join(out_dir, "products", href), "w") as f:
-            f.write(iso_xml)
-        product_item.add_asset(
-            "iso-metadata", pystac.Asset(href, roles=["metadata"])
-        )
+        # generate ISO metadata for each product and add it as an asset
+        for product, product_item in product_items:
+            iso_xml = generate_product_metadata(
+                product, project_parent_identifiers.get(product.project)
+            )
+            href = os.path.join("./iso", f"{product.id}.xml")
+            with open(os.path.join(out_dir, "products", href), "w") as f:
+                f.write(iso_xml)
+            product_item.add_asset(
+                "iso-metadata", pystac.Asset(href, roles=["metadata"])
+            )
 
     metrics = build_metrics("OSC-Catalog", themes, variables, projects, products)
     with open(os.path.join(out_dir, "metrics.json"), "w") as f:
@@ -92,10 +100,18 @@ def build_dist(data_dir: str, out_dir: str, pretty_print: bool, root_href: str):
     tree.write(os.path.join(out_dir, "codelists.xml"), pretty_print=pretty_print)
 
     catalog.add_link(
-        pystac.Link(pystac.RelType.ALTERNATE, urljoin(root_href, "metrics.json"), "application/json")
+        pystac.Link(
+            pystac.RelType.ALTERNATE,
+            urljoin(root_href, "metrics.json"),
+            "application/json",
+        )
     )
     catalog.add_link(
-        pystac.Link(pystac.RelType.ALTERNATE, urljoin(root_href, "codelists.xml"), "application/xml")
+        pystac.Link(
+            pystac.RelType.ALTERNATE,
+            urljoin(root_href, "codelists.xml"),
+            "application/xml",
+        )
     )
     save_catalog(catalog, out_dir, root_href)
 

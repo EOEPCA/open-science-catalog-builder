@@ -4,6 +4,7 @@ import click
 
 from .build import build_dist, convert_csvs
 
+
 @click.group()
 @click.pass_context
 def cli(ctx):
@@ -31,8 +32,12 @@ def convert(
 @click.option("--out-dir", "-o", default="dist", type=str)
 @click.option("--root-href", "-r", default="", type=str)
 @click.option("--pretty-print/--no-pretty-print", default=True)
-def build(data_dir: str, out_dir: str, pretty_print: bool, root_href: str):
-    build_dist(data_dir, out_dir, pretty_print, root_href)
+@click.option("--add-iso/--no-add-iso", default=True)
+def build(
+    data_dir: str, out_dir: str, pretty_print: bool, root_href: str, add_iso: bool
+):
+    build_dist(data_dir, out_dir, pretty_print, root_href, add_iso)
+
 
 if __name__ == "__main__":
     cli(obj={})

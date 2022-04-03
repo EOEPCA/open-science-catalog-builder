@@ -196,9 +196,7 @@ class ItemOSCExtension(OSCExtension[pystac.Item]):
         )
         self.item.add_link(
             pystac.Link(
-                pystac.RelType.VIA,
-                project.eo4_society_link,
-                title="EO4Society Link"
+                pystac.RelType.VIA, project.eo4_society_link, title="EO4Society Link"
             )
         )
 
@@ -336,7 +334,9 @@ def build_catalog(
     variables: List[Variable],
     projects: List[Project],
     products: List[Product],
-) -> Tuple[pystac.Catalog, List[Tuple[Project, pystac.Item]], List[Tuple[Product, pystac.Item]]]:
+) -> Tuple[
+    pystac.Catalog, List[Tuple[Project, pystac.Item]], List[Tuple[Product, pystac.Item]]
+]:
     catalog = pystac.Catalog("OSC-Catalog", "OSC-Catalog", href="catalog.json")
 
     # create collections/items from given themes, variables, projects and products
@@ -349,19 +349,30 @@ def build_catalog(
         for variable in variables
     }
 
-    project_items = [item_from_project(project) for project in projects]
+    project_items = {
+        slugify(project.name): item_from_project(project) for project in projects
+    }
 
-    product_items = [item_from_product(product) for product in products]
+    product_items = {product.id: item_from_product(product) for product in products}
 
     # place everything in its accoring collection
-    for item in product_items:
+    for item in product_items.values():
         collection = variable_collections.get(slugify(item.properties[VARIABLE_PROP]))
         if collection:
             collection.add_item(item)
         else:
             print(f"Missing variable {item.properties[VARIABLE_PROP]}")
 
-    for item in project_items:
+        project_item = project_items.get(slugify(item.properties[PROJECT_PROP]))
+        if project_item:
+            item.add_link(pystac.Link.collection(cast(pystac.Collection, project_item)))
+            project_item.add_link(
+                pystac.Link.item(item, title=item.properties["title"])
+            )
+        else:
+            print(f"Missing project {item.properties[PROJECT_PROP]}")
+
+    for item in project_items.values():
         for theme_name in item.properties[THEMES_PROP]:
             theme_collection = theme_collections.get(slugify(theme_name))
             if theme_collection:
@@ -380,17 +391,26 @@ def build_catalog(
 
     catalog.add_children(theme_collections.values())
 
-    return (catalog, list(zip(projects, project_items)), list(zip(products, product_items)))
+    return (
+        catalog,
+        list(zip(projects, project_items.values())),
+        list(zip(products, product_items.values())),
+    )
 
 
-def save_catalog(catalog: pystac.Catalog, output_dir: str, root_href: str=""):
+def save_catalog(catalog: pystac.Catalog, output_dir: str, root_href: str = ""):
     # output directory handlign
     os.makedirs(output_dir, exist_ok=True)
     catalog.normalize_hrefs(
         root_href,
         strategy=pystac.layout.CustomLayoutStrategy(
-            collection_func=lambda coll, parent_dir, is_root: urljoin(root_href, f"{coll.extra_fields['osc:type'].lower()}s/{slugify(coll.id)}.json"),
-            item_func=lambda item, parent_dir: urljoin(root_href, f"{item.properties['osc:type'].lower()}s/{item.id}.json"),
+            collection_func=lambda coll, parent_dir, is_root: urljoin(
+                root_href,
+                f"{coll.extra_fields['osc:type'].lower()}s/{slugify(coll.id)}.json",
+            ),
+            item_func=lambda item, parent_dir: urljoin(
+                root_href, f"{item.properties['osc:type'].lower()}s/{item.id}.json"
+            ),
         ),
     )
     catalog.make_all_asset_hrefs_absolute()
