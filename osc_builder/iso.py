@@ -52,7 +52,7 @@ STATUSES = {
 def build_theme_keywords(themes: list) -> dict:
     keywords = {
         'themes': {
-            'keywords': themes,
+            'keywords': list([f'theme:{t}' for t in themes]),
             'keywords_type': 'theme'
         }
     }
@@ -127,7 +127,7 @@ def generate_product_metadata(product: Product, parent_identifier: Optional[str]
         mcf['metadata']['parentidentifier'] = parent_identifier
 
     mcf['identification']['keywords']['default'] = {
-        'keywords': [product.variable],
+        'keywords': [f'variable:{product.variable}'],
         'keywords_type': 'theme'
     }
 
