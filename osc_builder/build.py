@@ -6,6 +6,7 @@ from typing import TextIO
 from urllib.parse import urljoin
 
 import pystac
+from slugify import slugify
 
 from .codelist import build_codelists
 from .io import (
@@ -72,7 +73,12 @@ def build_dist(
     if add_iso_metadata:
         # generate ISO metadata for each project and add it as an asset
         for project, project_item in project_items:
-            iso_xml = generate_project_metadata(project)
+            iso_xml = generate_project_metadata(
+                project,
+                urljoin(
+                    root_href, f"projects/{slugify(project.title)}.json"
+                )
+            )
             href = os.path.join("./iso", f"{project.id}.xml")
             with open(os.path.join(out_dir, "projects", href), "w") as f:
                 f.write(iso_xml)
@@ -83,7 +89,11 @@ def build_dist(
         # generate ISO metadata for each product and add it as an asset
         for product, product_item in product_items:
             iso_xml = generate_product_metadata(
-                product, project_parent_identifiers.get(product.project)
+                product,
+                project_parent_identifiers.get(product.project),
+                urljoin(
+                    root_href, f"products/{slugify(product.title)}.json"
+                )
             )
             href = os.path.join("./iso", f"{product.id}.xml")
             with open(os.path.join(out_dir, "products", href), "w") as f:

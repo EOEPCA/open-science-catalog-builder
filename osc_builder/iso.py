@@ -58,7 +58,7 @@ def build_theme_keywords(themes: list) -> dict:
     return keywords
 
 
-def generate_project_metadata(project: Project) -> str:
+def generate_project_metadata(project: Project, self_link: Optional[str]) -> str:
     mcf = deepcopy(MCF_TEMPLATE)
     now = datetime.now().isoformat()
 
@@ -104,13 +104,22 @@ def generate_project_metadata(project: Project) -> str:
         }
     }
 
+    if self_link:
+        mcf['distribution']['self'] = {
+            'url': self_link,
+            'type': 'WWW:LINK',
+            'name': 'self',
+            'description': 'self',
+            'function': 'download'
+        }
+
     if project.eo4_society_link:
         mcf['identification']['url'] = project.eo4_society_link
 
     return ISO19139OutputSchema().write(mcf)
 
 
-def generate_product_metadata(product: Product, parent_identifier: Optional[str]) -> str:
+def generate_product_metadata(product: Product, parent_identifier: Optional[str], self_link: Optional[str]) -> str:
     mcf = deepcopy(MCF_TEMPLATE)
     now = datetime.now().isoformat()
 
@@ -190,6 +199,15 @@ def generate_product_metadata(product: Product, parent_identifier: Optional[str]
             'type': 'WWW:LINK',
             'name': 'access',
             'description': 'access',
+            'function': 'download'
+        }
+
+    if self_link:
+        mcf['distribution']['self'] = {
+            'url': self_link,
+            'type': 'WWW:LINK',
+            'name': 'self',
+            'description': 'self',
             'function': 'download'
         }
 
