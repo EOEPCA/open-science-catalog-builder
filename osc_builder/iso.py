@@ -51,10 +51,8 @@ STATUSES = {
 
 def build_theme_keywords(themes: list) -> dict:
     keywords = {
-        'themes': {
-            'keywords': list([f'theme:{t}' for t in themes]),
-            'keywords_type': 'theme'
-        }
+        'keywords': list([f'theme:{t}' for t in themes]),
+        'keywords_type': 'theme'
     }
 
     return keywords
