@@ -202,8 +202,11 @@ class ItemOSCExtension(OSCExtension[pystac.Item]):
 
 
 class OSCItem(pystac.Item):
+    """
+    """
     def set_collection(self, collection: Optional[pystac.Collection]) -> "OSCItem":
-
+        """
+        """
         # self.remove_links(pystac.RelType.COLLECTION)
         self.collection_id = None
         if collection is not None:
@@ -399,7 +402,7 @@ def build_catalog(
 
 
 def save_catalog(catalog: pystac.Catalog, output_dir: str, root_href: str = ""):
-    # output directory handlign
+    # output directory handling
     os.makedirs(output_dir, exist_ok=True)
     catalog.normalize_hrefs(
         root_href,
@@ -409,7 +412,7 @@ def save_catalog(catalog: pystac.Catalog, output_dir: str, root_href: str = ""):
                 f"{coll.extra_fields['osc:type'].lower()}s/{slugify(coll.id)}.json",
             ),
             item_func=lambda item, parent_dir: urljoin(
-                root_href, f"{item.properties['osc:type'].lower()}s/{item.id}.json"
+                root_href, f"{item.properties['osc:type'].lower()}s/{slugify(item.properties['title'])}.json"
             ),
         ),
     )
