@@ -69,7 +69,7 @@ def generate_project_metadata(project: Project, self_link: Optional[str]) -> str
     mcf['identification']['abstract'] = project.description
     mcf['identification']['status'] = STATUSES[project.status.value]
 
-    mcf['identification']['keywords']['themes'] = build_theme_keywords([project.themes])  # noqa
+    mcf['identification']['keywords']['themes'] = build_theme_keywords(project.themes)
 
     mcf['identification']['keywords']['short-name'] = {
         'keywords': [project.name],
@@ -138,7 +138,7 @@ def generate_product_metadata(product: Product, parent_identifier: Optional[str]
         'keywords_type': 'theme'
     }
 
-    mcf['identification']['keywords']['themes'] = build_theme_keywords(product.themes)  # noqa
+    mcf['identification']['keywords']['themes'] = build_theme_keywords(product.themes)
 
     if product.doi:
         doi_url = urlparse(product.doi)
