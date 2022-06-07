@@ -97,6 +97,7 @@ def generate_project_metadata(project: Project, self_link: Optional[str]) -> str
     mcf['distribution'] = {
         'website': {
             'url': project.website,
+            'rel': 'describedBy',
             'type': 'WWW:LINK',
             'name': 'website',
             'description': 'website',
@@ -107,6 +108,7 @@ def generate_project_metadata(project: Project, self_link: Optional[str]) -> str
     if self_link:
         mcf['distribution']['self'] = {
             'url': self_link,
+            'rel': 'self',
             'type': 'WWW:LINK',
             'name': 'self',
             'description': 'self',
@@ -186,6 +188,7 @@ def generate_product_metadata(product: Product, parent_identifier: Optional[str]
     mcf['distribution'] = {
         'website': {
             'url': product.website,
+            'rel': 'describedBy',
             'type': 'WWW:LINK',
             'name': 'website',
             'description': 'website',
@@ -196,6 +199,7 @@ def generate_product_metadata(product: Product, parent_identifier: Optional[str]
     if product.access:
         mcf['distribution']['access'] = {
             'url': product.access,
+            'rel': 'data',
             'type': 'WWW:LINK',
             'name': 'access',
             'description': 'access',
@@ -205,6 +209,7 @@ def generate_product_metadata(product: Product, parent_identifier: Optional[str]
     if self_link:
         mcf['distribution']['self'] = {
             'url': self_link,
+            'rel': 'self',
             'type': 'WWW:LINK',
             'name': 'self',
             'description': 'self',
