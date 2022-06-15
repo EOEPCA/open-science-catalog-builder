@@ -1,9 +1,9 @@
-from datetime import date, datetime, time
+from datetime import date
 import mimetypes
 import os
 import os.path
 from typing import Generic, List, Optional, Tuple, TypeVar, Union, cast
-from urllib.parse import urljoin, urlparse, urlunparse
+from urllib.parse import urljoin
 
 from slugify import slugify
 import pystac
@@ -13,8 +13,6 @@ from pystac.extensions.base import ExtensionManagementMixin, PropertiesExtension
 from dateutil.parser import parse as parse_datetime
 import pygeoif.geometry
 
-from .codelist import build_codelists
-from .metrics import build_metrics
 from .types import Contact, Product, Project, Status, Theme, Variable
 
 
@@ -135,11 +133,11 @@ class ItemOSCExtension(OSCExtension[pystac.Item]):
         if isinstance(product.released, date):
             self.properties["created"] = product.released.isoformat()
         # TODO: handle "Planned" value
-
+        common = pystac.CommonMetadata(self.item)
         if product.start:
-            self.properties["start_datetime"] = product.start.isoformat()
+            common.start_datetime = product.start
         if product.end:
-            self.properties["end_datetime"] = product.end.isoformat()
+            common.end_datetime = product.end
         if product.version:
             self.properties["version"] = product.version
 
@@ -182,10 +180,11 @@ class ItemOSCExtension(OSCExtension[pystac.Item]):
             }
         )
 
+        common = pystac.CommonMetadata(self.item)
         if project.start:
-            self.properties["start_datetime"] = project.start.isoformat()
+            common.start_datetime = project.start
         if project.end:
-            self.properties["end_datetime"] = project.end.isoformat()
+            common.end_datetime = project.end
 
         self.item.add_link(
             pystac.Link(
@@ -221,7 +220,7 @@ def item_from_product(product: Product) -> pystac.Item:
         product.id,
         product.geometry.__geo_interface__ if product.geometry else None,
         product.geometry.bounds if product.geometry else None,
-        datetime.combine(product.start, time.min) if product.start else None,
+        product.start if product.start else None,
         {
             "start_datetime": None,
             "end_datetime": None,
@@ -252,7 +251,7 @@ def product_from_item(item: pystac.Item) -> Product:
         themes=properties[THEMES_PROP],
         access=cast(str, via_links[1].get_href(False)),
         documentation=via_links[2].get_href(False) if len(via_links) >= 3 else None,
-        doi=None,  # TODO
+        doi=properties.get("sci:doi"),
         version=properties.get("version"),
         start=parse_datetime(properties["start_datetime"]).date()
         if properties.get("start_datetime")
@@ -272,7 +271,7 @@ def item_from_project(project: Project) -> pystac.Item:
         project.id,
         None,
         None,
-        datetime.combine(project.start, time.min),
+        project.start,
         {},
     )
 
