@@ -55,7 +55,7 @@ def parse_released(value: str) -> Union[date, None, Literal["Planned"]]:
     if value == "Planned":
         return "Planned"
 
-    return parse_datetime(value).date
+    return parse_datetime(value).date()
 
 
 def load_orig_products(file: TextIO) -> List[Product]:

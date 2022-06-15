@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, time, timezone
 import mimetypes
 import os
 import os.path
@@ -130,10 +130,16 @@ class ItemOSCExtension(OSCExtension[pystac.Item]):
             }
         )
 
-        if isinstance(product.released, date):
-            self.properties["created"] = product.released.isoformat()
-        # TODO: handle "Planned" value
         common = pystac.CommonMetadata(self.item)
+
+        # TODO: handle "Planned" value
+        if isinstance(product.released, date):
+            common.created = datetime.combine(
+                product.released,
+                time.min,
+                timezone.utc
+            )
+
         if product.start:
             common.start_datetime = product.start
         if product.end:
