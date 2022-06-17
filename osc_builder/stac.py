@@ -259,10 +259,10 @@ def product_from_item(item: pystac.Item) -> Product:
         documentation=via_links[2].get_href(False) if len(via_links) >= 3 else None,
         doi=properties.get("sci:doi"),
         version=properties.get("version"),
-        start=parse_datetime(properties["start_datetime"]).date()
+        start=parse_datetime(properties["start_datetime"])
         if properties.get("start_datetime")
         else None,
-        end=parse_datetime(properties["end_datetime"]).date()
+        end=parse_datetime(properties["end_datetime"])
         if properties.get("end_datetime")
         else None,
         geometry=pygeoif.geometry.as_shape(item.geometry) if item.geometry else None,
@@ -299,8 +299,8 @@ def project_from_item(item: pystac.Item) -> Project:
         website=cast(str, via_links[0].get_href(False)),
         eo4_society_link=cast(str, via_links[1].get_href(False)),
         consortium=properties[CONSORTIUM_PROP],
-        start=parse_datetime(properties["start_datetime"]).date(),
-        end=parse_datetime(properties["end_datetime"]).date(),
+        start=parse_datetime(properties["start_datetime"]),
+        end=parse_datetime(properties["end_datetime"]),
         technical_officer=Contact(
             properties[TECHNICAL_OFFICER_PROP]["name"],
             properties[TECHNICAL_OFFICER_PROP]["e-mail"],
