@@ -213,7 +213,7 @@ def generate_product_metadata(product: Product, parent_identifier: Optional[str]
             'type': 'WWW:LINK',
             'name': 'self',
             'description': 'self',
-            'function': 'download'
+            'function': 'self'
         }
 
     if product.documentation:
