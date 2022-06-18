@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime
 from enum import Enum
 from typing import List, Literal, Optional, Union
 
@@ -26,8 +26,8 @@ class Product:
     documentation: Optional[str] = None
     doi: Optional[str] = None
     version: Optional[str] = None
-    start: Optional[date] = None
-    end: Optional[date] = None
+    start: Optional[datetime] = None
+    end: Optional[datetime] = None
     geometry: Optional[pygeoif.geometry._Geometry] = None
     region: Optional[str] = None
     released: Union[date, None, Literal["Planned"]] = None
@@ -50,8 +50,8 @@ class Project:
     website: str
     eo4_society_link: str
     consortium: List[str]
-    start: date
-    end: date
+    start: datetime
+    end: datetime
     technical_officer: Contact
     themes: List[str]
 

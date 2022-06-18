@@ -2,7 +2,7 @@ from datetime import date
 from typing import Any, Optional
 
 
-def parse_decimal_date(source: Optional[str]):
+def parse_decimal_date(source: Optional[str]) -> Optional[date]:
     if not source:
         return None
     dot_count = source.count(".")
