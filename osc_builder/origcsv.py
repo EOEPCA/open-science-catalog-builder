@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 
 from pygeoif import geometry
 from dateutil.parser import parse as parse_datetime
+from slugify import slugify
 
 from .types import Contact, Product, Project, Status, Theme, Variable
 from .util import parse_decimal_date, get_depth
@@ -59,9 +60,9 @@ def parse_released(value: str) -> Union[date, None, Literal["Planned"]]:
 
 
 def load_orig_products(file: TextIO) -> List[Product]:
-    return [
+    products = [
         Product(
-            id=f"product-{line['ID']}",
+            id=line["Short_Name"],
             status=Status(line["Status"].upper()),
             website=line["Website"],
             title=line["Product"],
@@ -94,12 +95,13 @@ def load_orig_products(file: TextIO) -> List[Product]:
         )
         for line in csv.DictReader(file)
     ]
+    return products
 
 
 def load_orig_projects(file: TextIO) -> List[Project]:
-    return [
+    projects = [
         Project(
-            id=f"project-{line['Project_ID']}",
+            id=slugify(line["Short_Name"]),
             status=Status(line["Status"].upper()),
             name=line["Project_Name"],
             title=line["Short_Name"],
@@ -129,6 +131,7 @@ def load_orig_projects(file: TextIO) -> List[Project]:
         )
         for line in csv.DictReader(file)
     ]
+    return projects
 
 
 def load_orig_themes(file: TextIO) -> List[Theme]:
