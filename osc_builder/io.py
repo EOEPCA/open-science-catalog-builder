@@ -67,6 +67,7 @@ def store_variables(variables: List[Variable], directory: str):
         with open(join(directory, f"{slugify(variable.name)}.json"), "w") as f:
             json.dump(asdict(variable), f, indent=2)
 
+
 def store_iso_docs(records: List[str], directory: str):
     makedirs(directory, exist_ok=True)
     for record in records:

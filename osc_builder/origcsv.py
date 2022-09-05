@@ -1,13 +1,14 @@
 
-from datetime import date
-from os import PathLike
+from datetime import date, datetime, time, timezone
 from typing import List, Literal, TextIO, Union
 import csv
 from itertools import groupby
 import json
+from urllib.parse import urlparse
 
 from pygeoif import geometry
 from dateutil.parser import parse as parse_datetime
+from slugify import slugify
 
 from .types import Contact, Product, Project, Status, Theme, Variable
 from .util import parse_decimal_date, get_depth
@@ -55,13 +56,13 @@ def parse_released(value: str) -> Union[date, None, Literal["Planned"]]:
     if value == "Planned":
         return "Planned"
 
-    return parse_datetime(value).date
+    return parse_datetime(value).date()
 
 
 def load_orig_products(file: TextIO) -> List[Product]:
-    return [
+    products = [
         Product(
-            id=f"product-{line['ID']}",
+            id=line["Short_Name"],
             status=Status(line["Status"].upper()),
             website=line["Website"],
             title=line["Product"],
@@ -71,10 +72,18 @@ def load_orig_products(file: TextIO) -> List[Product]:
             themes=get_themes(line),
             access=line["Access"],
             documentation=line["Documentation"] or None,
-            doi=line["DOI"] or None,
+            doi=urlparse(line["DOI"]).path[1:] if line["DOI"] else None,
             version=line["Version"] or None,
-            start=parse_decimal_date(line["Start"]) if line["Start"] else None,
-            end=parse_decimal_date(line["End"]) if line["End"] else None,
+            start=datetime.combine(
+                parse_decimal_date(line["Start"]),
+                time.min,
+                timezone.utc
+            ) if line["Start"] else None,
+            end=datetime.combine(
+                parse_decimal_date(line["End"]),
+                time.max.replace(microsecond=0),
+                timezone.utc
+            ) if line["End"] else None,
             geometry=parse_geometry(line["Polygon"]),
             region=line["Region"] or None,
             released=parse_released(line["Released"]),
@@ -86,12 +95,13 @@ def load_orig_products(file: TextIO) -> List[Product]:
         )
         for line in csv.DictReader(file)
     ]
+    return products
 
 
 def load_orig_projects(file: TextIO) -> List[Project]:
-    return [
+    projects = [
         Project(
-            id=f"project-{line['Project_ID']}",
+            id=slugify(line["Short_Name"]),
             status=Status(line["Status"].upper()),
             name=line["Project_Name"],
             title=line["Short_Name"],
@@ -103,8 +113,16 @@ def load_orig_projects(file: TextIO) -> List[Project]:
                 for member in line["Consortium"].split(",")
                 if (stripped := member.strip())
             ],
-            start=parse_datetime(line["Start_Date_Project"]).date(),
-            end=parse_datetime(line["End_Date_Project"]).date(),
+            start=datetime.combine(
+                parse_datetime(line["Start_Date_Project"]).date(),
+                time.min,
+                tzinfo=timezone.utc,
+            ),
+            end=datetime.combine(
+                parse_datetime(line["End_Date_Project"]).date(),
+                time.max.replace(microsecond=0),
+                tzinfo=timezone.utc,
+            ),
             technical_officer=Contact(
                 line["TO"],
                 line["TO_E-mail"],
@@ -113,6 +131,7 @@ def load_orig_projects(file: TextIO) -> List[Project]:
         )
         for line in csv.DictReader(file)
     ]
+    return projects
 
 
 def load_orig_themes(file: TextIO) -> List[Theme]:
