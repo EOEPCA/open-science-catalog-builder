@@ -38,7 +38,9 @@ MISSIONS_PROP = f"{PREFIX}missions"
 class OSCExtension(
     Generic[T],
     PropertiesExtension,
-    ExtensionManagementMixin[Union[pystac.Catalog, pystac.Collection, pystac.Item]],
+    ExtensionManagementMixin[
+        Union[pystac.Catalog, pystac.Collection, pystac.Item]
+    ],
 ):
     obj: pystac.STACObject
 
@@ -135,9 +137,7 @@ class ItemOSCExtension(OSCExtension[pystac.Item]):
         # TODO: handle "Planned" value
         if isinstance(product.released, date):
             common.created = datetime.combine(
-                product.released,
-                time.min,
-                timezone.utc
+                product.released, time.min, timezone.utc
             )
 
         if product.start:
@@ -201,17 +201,20 @@ class ItemOSCExtension(OSCExtension[pystac.Item]):
         )
         self.item.add_link(
             pystac.Link(
-                pystac.RelType.VIA, project.eo4_society_link, title="EO4Society Link"
+                pystac.RelType.VIA,
+                project.eo4_society_link,
+                title="EO4Society Link",
             )
         )
 
 
 class OSCItem(pystac.Item):
-    """
-    """
-    def set_collection(self, collection: Optional[pystac.Collection]) -> "OSCItem":
-        """
-        """
+    """ """
+
+    def set_collection(
+        self, collection: Optional[pystac.Collection]
+    ) -> "OSCItem":
+        """ """
         # self.remove_links(pystac.RelType.COLLECTION)
         self.collection_id = None
         if collection is not None:
@@ -221,7 +224,9 @@ class OSCItem(pystac.Item):
         return self
 
 
-def item_from_product(product: Product) -> pystac.Item:
+def item_from_product(
+    product: Product, update_datetime: Optional[datetime] = None
+) -> pystac.Item:
     item = OSCItem(
         product.id,
         product.geometry.__geo_interface__ if product.geometry else None,
@@ -237,8 +242,13 @@ def item_from_product(product: Product) -> pystac.Item:
     osc_ext.apply_product(product)
 
     if product.doi:
-        sci_ext = pystac.extensions.scientific.ScientificExtension.ext(item, True)
+        sci_ext = pystac.extensions.scientific.ScientificExtension.ext(
+            item, True
+        )
         sci_ext.apply(product.doi)
+
+    if update_datetime:
+        pystac.CommonMetadata(item).updated = update_datetime
 
     return item
 
@@ -256,7 +266,9 @@ def product_from_item(item: pystac.Item) -> Product:
         variable=properties[VARIABLE_PROP],
         themes=properties[THEMES_PROP],
         access=cast(str, via_links[1].get_href(False)),
-        documentation=via_links[2].get_href(False) if len(via_links) >= 3 else None,
+        documentation=via_links[2].get_href(False)
+        if len(via_links) >= 3
+        else None,
         doi=properties.get("sci:doi"),
         version=properties.get("version"),
         start=parse_datetime(properties["start_datetime"])
@@ -265,14 +277,18 @@ def product_from_item(item: pystac.Item) -> Product:
         end=parse_datetime(properties["end_datetime"])
         if properties.get("end_datetime")
         else None,
-        geometry=pygeoif.geometry.as_shape(item.geometry) if item.geometry else None,
+        geometry=pygeoif.geometry.as_shape(item.geometry)
+        if item.geometry
+        else None,
         region=properties[REGION_PROP],
         # released=,
         eo_missions=properties[MISSIONS_PROP],
     )
 
 
-def item_from_project(project: Project) -> pystac.Item:
+def item_from_project(
+    project: Project, update_datetime: Optional[datetime] = None
+) -> pystac.Item:
     item = OSCItem(
         project.id,
         None,
@@ -283,6 +299,9 @@ def item_from_project(project: Project) -> pystac.Item:
 
     osc_ext = cast(ItemOSCExtension, OSCExtension.ext(item, True))
     osc_ext.apply_project(project)
+
+    if update_datetime:
+        pystac.CommonMetadata(item).updated = update_datetime
 
     return item
 
@@ -340,11 +359,9 @@ def collection_from_variable(variable: Variable) -> pystac.Collection:
 def build_catalog(
     themes: List[Theme],
     variables: List[Variable],
-    projects: List[Project],
-    products: List[Product],
-) -> Tuple[
-    pystac.Catalog, List[Tuple[Project, pystac.Item]], List[Tuple[Product, pystac.Item]]
-]:
+    project_items: List[Tuple[Project, pystac.Item]],
+    product_items: List[Tuple[Product, pystac.Item]],
+) -> pystac.Catalog:
     catalog = pystac.Catalog("OSC-Catalog", "OSC-Catalog", href="catalog.json")
 
     # create collections/items from given themes, variables, projects and products
@@ -356,37 +373,48 @@ def build_catalog(
         slugify(variable.name): collection_from_variable(variable)
         for variable in variables
     }
-
-    project_items = {
-        slugify(project.name): item_from_project(project) for project in projects
+    project_map = {
+        slugify(project.name): item for project, item in project_items
     }
 
-    product_items = {product.id: item_from_product(product) for product in products}
-
     # place everything in its accoring collection
-    for item in product_items.values():
-        collection = variable_collections.get(slugify(item.properties[VARIABLE_PROP]))
+    for _, product_item in product_items:
+        collection = variable_collections.get(
+            slugify(product_item.properties[VARIABLE_PROP])
+        )
         if collection:
-            collection.add_item(item)
+            collection.add_item(product_item)
         else:
-            print(f"Missing variable {item.properties[VARIABLE_PROP]}")
+            print(
+                f"{product_item.self_href}: Missing variable "
+                f"{product_item.properties[VARIABLE_PROP]}"
+            )
 
-        project_item = project_items.get(slugify(item.properties[PROJECT_PROP]))
+        project_item = project_map.get(
+            slugify(product_item.properties[PROJECT_PROP])
+        )
         if project_item:
-            item.add_link(pystac.Link.collection(cast(pystac.Collection, project_item)))
+            product_item.add_link(
+                pystac.Link.collection(cast(pystac.Collection, project_item))
+            )
             project_item.add_link(
-                pystac.Link.item(item, title=item.properties["title"])
+                pystac.Link.item(
+                    product_item, title=product_item.properties["title"]
+                )
             )
         else:
-            print(f"Missing project {item.properties[PROJECT_PROP]}")
+            print(
+                f"{product_item.self_href}: Missing project "
+                f"{product_item.properties[PROJECT_PROP]}"
+            )
 
-    for item in project_items.values():
-        for theme_name in item.properties[THEMES_PROP]:
+    for _, project_item in project_items:
+        for theme_name in project_item.properties[THEMES_PROP]:
             theme_collection = theme_collections.get(slugify(theme_name))
             if theme_collection:
-                theme_collection.add_item(item)
+                theme_collection.add_item(project_item)
             else:
-                print(f"Missing theme {theme_name}")
+                print(f"{project_item.self_href}: Missing theme {theme_name}")
 
     for collection in variable_collections.values():
         theme_collection = theme_collections.get(
@@ -395,15 +423,14 @@ def build_catalog(
         if theme_collection:
             theme_collection.add_child(collection)
         else:
-            print(f"Missing theme {collection.extra_fields[THEME_PROP]}")
+            print(
+                f"{theme_collection.get_self_href()}: "
+                f"Missing theme {collection.extra_fields[THEME_PROP]}"
+            )
 
     catalog.add_children(theme_collections.values())
 
-    return (
-        catalog,
-        list(zip(projects, project_items.values())),
-        list(zip(products, product_items.values())),
-    )
+    return catalog
 
 
 def save_catalog(catalog: pystac.Catalog, output_dir: str, root_href: str = ""):
@@ -417,7 +444,8 @@ def save_catalog(catalog: pystac.Catalog, output_dir: str, root_href: str = ""):
                 f"{coll.extra_fields['osc:type'].lower()}s/{slugify(coll.id)}.json",
             ),
             item_func=lambda item, parent_dir: urljoin(
-                root_href, f"{item.properties['osc:type'].lower()}s/{slugify(item.properties['title'])}.json"
+                root_href,
+                f"{item.properties['osc:type'].lower()}s/{slugify(item.id)}.json",
             ),
         ),
     )

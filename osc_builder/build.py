@@ -1,8 +1,10 @@
+from datetime import datetime
 import json
-from math import prod
+from itertools import chain
 import os
+import os.path
 import shutil
-from typing import TextIO
+from typing import TextIO, Optional, List
 from urllib.parse import urljoin
 
 import pystac
@@ -10,8 +12,8 @@ from slugify import slugify
 
 from .codelist import build_codelists
 from .io import (
-    load_products,
-    load_projects,
+    load_product_items,
+    load_project_items,
     load_themes,
     load_variables,
     store_products,
@@ -36,6 +38,7 @@ def convert_csvs(
     projects_file: TextIO,
     products_file: TextIO,
     out_dir: str,
+    update_timestamp: datetime,
 ):
     variables = load_orig_variables(variables_file)
     themes = load_orig_themes(themes_file)
@@ -44,8 +47,12 @@ def convert_csvs(
 
     store_variables(variables, os.path.join(out_dir, "variables"))
     store_themes(themes, os.path.join(out_dir, "themes"))
-    store_projects(projects, os.path.join(out_dir, "projects"))
-    store_products(products, os.path.join(out_dir, "products"))
+    store_projects(
+        projects, os.path.join(out_dir, "projects"), update_timestamp
+    )
+    store_products(
+        products, os.path.join(out_dir, "products"), update_timestamp
+    )
 
 
 def build_dist(
@@ -54,30 +61,48 @@ def build_dist(
     pretty_print: bool,
     root_href: str,
     add_iso_metadata: bool = True,
+    updated_files: Optional[List[str]] = None,
+    update_timestamp: str = "",
 ):
+    print(updated_files)
     variables = load_variables(os.path.join(data_dir, "variables"))
     themes = load_themes(os.path.join(data_dir, "themes"))
-    projects = load_projects(os.path.join(data_dir, "projects"))
-    products = load_products(os.path.join(data_dir, "products"))
+    project_items = load_project_items(os.path.join(data_dir, "projects"))
+    product_items = load_product_items(os.path.join(data_dir, "products"))
 
-    catalog, project_items, product_items = build_catalog(
-        themes, variables, projects, products
-    )
+    # update the "updated" field
+    for updated_file in updated_files or []:
+        items = chain(
+            (item[1] for item in project_items),
+            (item[1] for item in product_items),
+        )
+        for item in items:
+            try:
+                if os.path.samefile(item.self_href, updated_file):
+                    pystac.CommonMetadata(item).updated = update_timestamp
+                    break
+            except FileNotFoundError:
+                print(f"updated file {updated_file} not found")
+                break
+        else:
+            print(f"updated file {updated_file} not found")
+
+    catalog = build_catalog(themes, variables, project_items, product_items)
 
     # making sure output directories exist
     os.makedirs(os.path.join(out_dir, "projects/iso"))
     os.makedirs(os.path.join(out_dir, "products/iso"))
 
-    project_parent_identifiers = {project.name: project.id for project in projects}
+    project_parent_identifiers = {
+        project[0].name: project[0].id for project in project_items
+    }
 
     if add_iso_metadata:
         # generate ISO metadata for each project and add it as an asset
         for project, project_item in project_items:
             iso_xml = generate_project_metadata(
                 project,
-                urljoin(
-                    root_href, f"projects/{slugify(project.title)}.json"
-                )
+                urljoin(root_href, f"projects/{slugify(project.title)}.json"),
             )
             href = os.path.join("./iso", f"{project.id}.xml")
             with open(os.path.join(out_dir, "projects", href), "w") as f:
@@ -91,9 +116,7 @@ def build_dist(
             iso_xml = generate_product_metadata(
                 product,
                 project_parent_identifiers.get(product.project),
-                urljoin(
-                    root_href, f"products/{slugify(product.title)}.json"
-                )
+                urljoin(root_href, f"products/{slugify(product.title)}.json"),
             )
             href = os.path.join("./iso", f"{product.id}.xml")
             with open(os.path.join(out_dir, "products", href), "w") as f:
@@ -102,12 +125,20 @@ def build_dist(
                 "iso-metadata", pystac.Asset(href, roles=["metadata"])
             )
 
-    metrics = build_metrics("OSC-Catalog", themes, variables, projects, products)
+    metrics = build_metrics(
+        "OSC-Catalog",
+        themes,
+        variables,
+        [project[0] for project in project_items],
+        [product[0] for product in product_items],
+    )
     with open(os.path.join(out_dir, "metrics.json"), "w") as f:
         json.dump(metrics, f, indent=2 if pretty_print else None)
 
     tree = build_codelists(themes, variables, [])
-    tree.write(os.path.join(out_dir, "codelists.xml"), pretty_print=pretty_print)
+    tree.write(
+        os.path.join(out_dir, "codelists.xml"), pretty_print=pretty_print
+    )
 
     catalog.add_link(
         pystac.Link(
