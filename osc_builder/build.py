@@ -101,7 +101,7 @@ def build_dist(
         for project, project_item in project_items:
             iso_xml = generate_project_metadata(
                 project,
-                urljoin(root_href, f"projects/{slugify(project.title)}.json"),
+                urljoin(root_href, f"projects/{slugify(project_item.id)}.json")
             )
             href = os.path.join("./iso", f"{project.id}.xml")
             with open(os.path.join(out_dir, "projects", href), "w") as f:
@@ -115,7 +115,7 @@ def build_dist(
             iso_xml = generate_product_metadata(
                 product,
                 project_parent_identifiers.get(product.project),
-                urljoin(root_href, f"products/{slugify(product.title)}.json"),
+                urljoin(root_href, f"products/{slugify(product_item.id)}.json")
             )
             href = os.path.join("./iso", f"{product.id}.xml")
             with open(os.path.join(out_dir, "products", href), "w") as f:
