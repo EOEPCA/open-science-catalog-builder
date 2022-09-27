@@ -1,4 +1,5 @@
 from datetime import date, datetime, time, timezone
+from itertools import chain
 import mimetypes
 import os
 import os.path
@@ -368,6 +369,9 @@ def build_catalog(
     theme_collections = {
         slugify(theme.name): collection_from_theme(theme) for theme in themes
     }
+
+    for _, item in chain(project_items, product_items):
+        item.set_self_href(None)
 
     variable_collections = {
         slugify(variable.name): collection_from_variable(variable)

@@ -64,7 +64,6 @@ def build_dist(
     updated_files: Optional[List[str]] = None,
     update_timestamp: str = "",
 ):
-    print(updated_files)
     variables = load_variables(os.path.join(data_dir, "variables"))
     themes = load_themes(os.path.join(data_dir, "themes"))
     project_items = load_project_items(os.path.join(data_dir, "projects"))
