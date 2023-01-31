@@ -1,8 +1,6 @@
-
 from datetime import date, datetime, time, timezone
 from typing import List, Literal, TextIO, Union
 import csv
-from itertools import groupby
 import json
 from urllib.parse import urlparse
 
@@ -10,16 +8,14 @@ from pygeoif import geometry
 from dateutil.parser import parse as parse_datetime
 from slugify import slugify
 
-from .types import Contact, Product, Project, Status, Theme, Variable
+from .types import (
+    Contact, Product, Project, Status, Theme, Variable, EOMission
+)
 from .util import parse_decimal_date, get_depth
 
 
 def get_themes(obj: dict) -> List[str]:
-    return [
-        obj[f"Theme{i}"]
-        for i in range(1, 7)
-        if obj[f"Theme{i}"]
-    ]
+    return [obj[f"Theme{i}"] for i in range(1, 7) if obj[f"Theme{i}"]]
 
 
 def parse_geometry(source: str) -> geometry._Geometry:
@@ -75,15 +71,17 @@ def load_orig_products(file: TextIO) -> List[Product]:
             doi=urlparse(line["DOI"]).path[1:] if line["DOI"] else None,
             version=line["Version"] or None,
             start=datetime.combine(
-                parse_decimal_date(line["Start"]),
-                time.min,
-                timezone.utc
-            ) if line["Start"] else None,
+                parse_decimal_date(line["Start"]), time.min, timezone.utc
+            )
+            if line["Start"]
+            else None,
             end=datetime.combine(
                 parse_decimal_date(line["End"]),
                 time.max.replace(microsecond=0),
-                timezone.utc
-            ) if line["End"] else None,
+                timezone.utc,
+            )
+            if line["End"]
+            else None,
             geometry=parse_geometry(line["Polygon"]),
             region=line["Region"] or None,
             released=parse_released(line["Released"]),
@@ -91,7 +89,7 @@ def load_orig_products(file: TextIO) -> List[Product]:
                 stripped_mission
                 for mission in line["EO_Missions"].split(";")
                 if (stripped_mission := mission.strip())
-            ]
+            ],
         )
         for line in csv.DictReader(file)
     ]
@@ -154,4 +152,13 @@ def load_orig_variables(file: TextIO) -> List[Variable]:
             theme=line["theme"],
         )
         for line in csv.DictReader(file)
+    ]
+
+
+def load_orig_eo_missions(file: TextIO) -> List[EOMission]:
+    return [
+        EOMission(
+            name=line["name"],
+        )
+        for line in csv.DictReader(file, fieldnames=["name"])
     ]

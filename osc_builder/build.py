@@ -8,6 +8,8 @@ from typing import TextIO, Optional, List
 from urllib.parse import urljoin
 
 import pystac
+import pystac.layout
+
 from slugify import slugify
 
 from .codelist import build_codelists
@@ -27,14 +29,17 @@ from .origcsv import (
     load_orig_projects,
     load_orig_themes,
     load_orig_variables,
+    load_orig_eo_missions,
 )
 from .metrics import build_metrics
 from .stac import build_catalog, save_catalog
+from .stac import collection_from_product, collection_from_project
 
 
 def convert_csvs(
     variables_file: TextIO,
     themes_file: TextIO,
+    eo_missions_file: TextIO,
     projects_file: TextIO,
     products_file: TextIO,
     out_dir: str,
@@ -44,18 +49,195 @@ def convert_csvs(
     themes = load_orig_themes(themes_file)
     projects = load_orig_projects(projects_file)
     products = load_orig_products(products_file)
+    eo_missions = load_orig_eo_missions(eo_missions_file)
 
-    store_variables(variables, os.path.join(out_dir, "variables"))
-    store_themes(themes, os.path.join(out_dir, "themes"))
-    store_projects(
-        projects, os.path.join(out_dir, "projects"), update_timestamp
+    root = pystac.Collection(
+        "Open Science Catalog",
+        "",
+        extent=pystac.Extent(
+            pystac.SpatialExtent([-180.0, -90.0, 180.0, 90.0]),
+            pystac.TemporalExtent([[None, None]]),
+        ),
     )
-    store_products(
-        products, os.path.join(out_dir, "products"), update_timestamp
+
+    project_map: dict[str, pystac.Collection] = {}
+    for project in projects:
+        collection = collection_from_project(project)
+        project_map[collection.id] = collection
+        root.add_child(collection)
+
+    product_map: dict[str, pystac.Collection] = {}
+
+    for product in products:
+        collection = collection_from_product(product)
+        product_map[collection.id] = collection
+        project_map[slugify(product.project)].add_child(collection)
+
+    os.makedirs(out_dir, exist_ok=True)
+    with open(os.path.join(out_dir, "themes.json"), "w") as f:
+        json.dump(
+            [
+                {
+                    "name": theme.name,
+                    "description": theme.description,
+                    "link": theme.link,
+                    "image": theme.image,
+                }
+                for theme in themes
+            ],
+            f,
+            indent=2,
+        )
+    with open(os.path.join(out_dir, "variables.json"), "w") as f:
+        json.dump(
+            [
+                {
+                    "name": variable.name,
+                    "description": variable.description,
+                    "link": variable.link,
+                    "theme": variable.theme,
+                }
+                for variable in variables
+            ],
+            f,
+            indent=2,
+        )
+    with open(os.path.join(out_dir, "eo-missions.json"), "w") as f:
+        json.dump(
+            [
+                {
+                    "name": eo_mission.name,
+                }
+                for eo_mission in eo_missions
+            ],
+            f,
+            indent=2,
+        )
+
+    # root stuff
+    root.add_asset(
+        "themes",
+        pystac.Asset("./themes.json", "Themes", "Themes", "application/json"),
+    )
+    root.add_asset(
+        "variables",
+        pystac.Asset(
+            "./variables.json", "Variables", "Variables", "application/json"
+        ),
+    )
+    root.add_asset(
+        "eo-missions",
+        pystac.Asset(
+            "./eo-missions.json",
+            "EO Missions",
+            "EO Missions",
+            "application/json",
+        ),
+    )
+
+    root.normalize_hrefs(
+        out_dir,
+        pystac.layout.TemplateLayoutStrategy(
+            item_template="items/${id}/${id}.json",
+            collection_template="collections/${id}/collection.json",
+        ),
+    )
+
+    root.save(pystac.CatalogType.ABSOLUTE_PUBLISHED, out_dir)
+
+    # store_variables(variables, os.path.join(out_dir, "variables"))
+    # store_themes(themes, os.path.join(out_dir, "themes"))
+    # store_projects(
+    #     projects, os.path.join(out_dir, "projects"), update_timestamp
+    # )
+    # store_products(
+    #     products, os.path.join(out_dir, "products"), update_timestamp
+    # )
+
+
+def validate_project(
+    collection: pystac.Collection, themes: set[str]
+) -> list[str]:
+    errors = []
+    for theme in collection.extra_fields["osc:themes"]:
+        if theme not in themes:
+            errors.append(f"Theme '{theme}' not valid")
+    return errors
+
+
+def validate_product(
+    collection: pystac.Collection,
+    themes: set[str],
+    variables: set[str],
+    eo_missions: set[str],
+) -> list[str]:
+    errors = []
+    variable = collection.extra_fields["osc:variable"]
+    if variable not in variables:
+        errors.append(f"Variable '{variable}' not valid")
+    for theme in collection.extra_fields["osc:themes"]:
+        if theme not in themes:
+            errors.append(f"Theme '{theme}' not valid")
+    for eo_mission in collection.extra_fields["osc:missions"]:
+        if eo_mission not in eo_missions:
+            errors.append(f"EO Mission '{eo_mission}' not valid")
+    return errors
+
+
+def validate_catalog(data_dir: str):
+    root: pystac.Collection = pystac.read_file(
+        os.path.join(data_dir, "collection.json")
+    )
+    assets = root.get_assets()
+    with open(os.path.join(data_dir, assets["themes"].href)) as f:
+        themes = {theme["name"] for theme in json.load(f)}
+    with open(os.path.join(data_dir, assets["variables"].href)) as f:
+        variables = {variable["name"] for variable in json.load(f)}
+    with open(os.path.join(data_dir, assets["eo-missions"].href)) as f:
+        eo_missions = {eo_mission["name"] for eo_mission in json.load(f)}
+
+    validation_errors = []
+
+    for project_collection in root.get_children():
+        ret = validate_project(project_collection, themes)
+        if ret:
+            validation_errors.append((project_collection, ret))
+        for product_collection in project_collection.get_children():
+            ret = validate_product(
+                product_collection, themes, variables, eo_missions
+            )
+            if ret:
+                validation_errors.append((product_collection, ret))
+
+    # TODO: raise Exception if validation_errors
+
+
+def build_dist(data_dir: str, out_dir: str, root_href: str, add_iso_metadata: bool = True):
+    shutil.copytree(
+        data_dir,
+        out_dir,
+        # dirs_exist_ok=True,
+    )
+
+    root: pystac.Collection = pystac.read_file(
+        os.path.join(out_dir, "collection.json")
+    )
+
+    root.normalize_hrefs(
+        root_href,
+        pystac.layout.TemplateLayoutStrategy(
+            item_template="items/${id}/${id}.json",
+            collection_template="collections/${id}/collection.json",
+        ),
+    )
+    root.make_all_asset_hrefs_absolute()
+    root.save(
+        pystac.CatalogType.ABSOLUTE_PUBLISHED,
+        out_dir
     )
 
 
-def build_dist(
+def _build_dist(
     data_dir: str,
     out_dir: str,
     pretty_print: bool,
@@ -101,7 +283,7 @@ def build_dist(
         for project, project_item in project_items:
             iso_xml = generate_project_metadata(
                 project,
-                urljoin(root_href, f"projects/{slugify(project_item.id)}.json")
+                urljoin(root_href, f"projects/{slugify(project_item.id)}.json"),
             )
             href = os.path.join("./iso", f"{project.id}.xml")
             with open(os.path.join(out_dir, "projects", href), "w") as f:
@@ -115,7 +297,7 @@ def build_dist(
             iso_xml = generate_product_metadata(
                 product,
                 project_parent_identifiers.get(product.project),
-                urljoin(root_href, f"products/{slugify(product_item.id)}.json")
+                urljoin(root_href, f"products/{slugify(product_item.id)}.json"),
             )
             href = os.path.join("./iso", f"{product.id}.xml")
             with open(os.path.join(out_dir, "products", href), "w") as f:

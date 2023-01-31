@@ -70,3 +70,8 @@ class Variable:
     description: str
     link: str
     theme: str
+
+
+@dataclass
+class EOMission:
+    name: str

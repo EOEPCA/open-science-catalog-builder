@@ -2,10 +2,11 @@ from operator import or_
 from functools import reduce
 from itertools import groupby
 from typing import Dict, List, Optional, TypedDict
+from datetime import datetime
 
 from slugify import slugify
 
-from .types import Product, Project, Theme, Variable
+from .types import Product, Project, Theme, Variable, EOMission
 
 
 class GlobalSummary(TypedDict):
@@ -61,10 +62,103 @@ class GlobalMetrics(TypedDict):
     missions: List[MissionMetrics]
 
 
+import pystac
+import os.path
+
+
+def build_variable_metrics():
+    pass
+
+
+def build_theme_metrics():
+    pass
+
+
+def intervals_to_years(intervals: List[List[datetime]]) -> set[int]:
+    result = set()
+    for start, end in intervals:
+        if start is not None and end is not None:
+            result |= set(year for year in range(start.year, end.year + 1))
+    return result
+
+
+
+def build_metrics_(
+    id: str,
+    root: pystac.Collection,
+    themes: List[Theme],
+    variables: List[Variable],
+    eo_missions: List[EOMission],
+) -> GlobalMetrics:
+
+    theme_infos: dict = {
+        theme.name: {
+            "projects": [],
+            "products": [],
+            "variables_infos": [],
+        }
+        for theme in themes
+    }
+
+    variable_infos = {
+        variable.name: {
+            "theme": variable.theme,
+            "products": []
+        }
+        for variable in variables
+    }
+
+    eo_mission_infos = {
+        eo_mission.name: {
+            "products": [],
+            "variables": set(),
+        }
+        for eo_mission in eo_missions
+    }
+
+    for variable_info in variable_infos.values():
+        theme_infos[variable_info["theme"]]["variable_infos"].append(variable_info)
+
+    for project_collection in root.get_children():
+        for theme in project_collection.extra_fields.get("osc:themes", []):
+            theme_infos[theme]["projects"].append(project_collection)
+
+        for product_collection in project_collection.get_children():
+            for theme in product_collection.extra_fields.get("osc:themes", []):
+                theme_infos[theme]["products"].append(product_collection)
+            variable = product_collection.extra_fields["osc:variable"]
+            variable_infos[variable]["products"].append(product_collection)
+            for eo_mission in product_collection.extra_fields.get("osc:missions", []):
+                eo_mission_infos[eo_mission]["products"].append(product_collection)
+                eo_mission_infos[eo_mission]["variables"].add(variable)
+
+            product_collection.extent.temporal.intervals[0][0]
+
+
+
+    return {
+        "id": id,
+        "summary": {
+            "years": sorted(
+                reduce(or_, [
+                    set(theme["summary"]["years"])
+                    for theme in theme_metrics
+                ])
+            ),
+            "numberOfProducts": len(global_products),
+            "numberOfProjects": len(global_projects),
+            "numberOfVariables": len(variables),
+            "numberOfThemes": len(themes),
+        },
+        "themes": theme_metrics,
+        "missions": mission_metrics,
+    }
+
 def build_metrics(
     id: str,
     themes: List[Theme],
     variables: List[Variable],
+    missions: List[EOMission],
     projects: List[Project],
     products: List[Product],
 ) -> GlobalMetrics:

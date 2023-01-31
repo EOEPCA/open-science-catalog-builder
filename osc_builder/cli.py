@@ -4,7 +4,7 @@ from typing import TextIO
 import click
 from dateutil.parser import parse as parse_datetime
 
-from .build import build_dist, convert_csvs
+from .build import convert_csvs, validate_catalog, build_dist
 
 
 @click.group()
@@ -16,6 +16,7 @@ def cli(ctx):
 @cli.command()
 @click.argument("variables_file", type=click.File("r"))
 @click.argument("themes_file", type=click.File("r"))
+@click.argument("eo_missions_file", type=click.File("r"))
 @click.argument("projects_file", type=click.File("r"))
 @click.argument("products_file", type=click.File("r"))
 @click.option("--out-dir", "-o", default="data", type=str)
@@ -23,6 +24,7 @@ def cli(ctx):
 def convert(
     variables_file: TextIO,
     themes_file: TextIO,
+    eo_missions_file: TextIO,
     projects_file: TextIO,
     products_file: TextIO,
     out_dir: str,
@@ -30,9 +32,20 @@ def convert(
 ):
     now = datetime.utcnow().replace(tzinfo=timezone.utc, microsecond=0)
     convert_csvs(
-        variables_file, themes_file, projects_file, products_file, out_dir,
-        parse_datetime(update_timestamp) if update_timestamp else now
+        variables_file,
+        themes_file,
+        eo_missions_file,
+        projects_file,
+        products_file,
+        out_dir,
+        parse_datetime(update_timestamp) if update_timestamp else now,
     )
+
+
+@cli.command()
+@click.argument("data_dir", type=str)
+def validate(data_dir: str):
+    validate_catalog(data_dir)
 
 
 @cli.command()
@@ -56,11 +69,11 @@ def build(
     build_dist(
         data_dir,
         out_dir,
-        pretty_print,
+        # pretty_print,
         root_href,
         add_iso,
-        updated_files.split(",") if updated_files else [],
-        parse_datetime(update_timestamp) if update_timestamp else now
+        # updated_files.split(",") if updated_files else [],
+        # parse_datetime(update_timestamp) if update_timestamp else now,
     )
 
 

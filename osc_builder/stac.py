@@ -76,47 +76,9 @@ class CatalogOSCExtension(OSCExtension[pystac.Catalog]):
 class CollectionOSCExtension(OSCExtension[pystac.Collection]):
     def __init__(self, collection: pystac.Collection):
         self.collection = collection
-
-    def apply_theme(self, theme: Theme):
-        self.collection.extra_fields = {
-            TYPE_PROP: "Theme",
-        }
-        self.collection.add_link(
-            pystac.Link(
-                pystac.RelType.VIA,
-                theme.link,
-                title="Link",
-            )
-        )
-        if theme.image:
-            self.collection.add_asset(
-                "image",
-                pystac.Asset(
-                    theme.image,
-                    title="image",
-                    roles=["thumbnail"],
-                    media_type=mimetypes.guess_type(theme.image)[0],
-                ),
-            )
-
-    def apply_variable(self, variable: Variable):
-        self.collection.extra_fields = {
-            THEME_PROP: variable.theme,
-            TYPE_PROP: "Variable",
-        }
-        self.collection.add_link(
-            pystac.Link(
-                pystac.RelType.VIA,
-                variable.link,
-                title="Link",
-            )
-        )
-
-
-class ItemOSCExtension(OSCExtension[pystac.Item]):
-    def __init__(self, item: pystac.Item):
-        self.item = item
-        self.properties = item.properties
+        self.properties = collection.extra_fields
+        self.links = collection.links
+        super().__init__(self.collection)
 
     def apply_product(self, product: Product):
         self.properties.update(
@@ -133,7 +95,7 @@ class ItemOSCExtension(OSCExtension[pystac.Item]):
             }
         )
 
-        common = pystac.CommonMetadata(self.item)
+        common = pystac.CommonMetadata(self.collection)
 
         # TODO: handle "Planned" value
         if isinstance(product.released, date):
@@ -148,13 +110,13 @@ class ItemOSCExtension(OSCExtension[pystac.Item]):
         if product.version:
             self.properties["version"] = product.version
 
-        self.item.add_link(
+        self.collection.add_link(
             pystac.Link(
                 pystac.RelType.VIA,
                 product.website,
             )
         )
-        self.item.add_link(
+        self.collection.add_link(
             pystac.Link(
                 pystac.RelType.VIA,
                 product.access,
@@ -162,7 +124,7 @@ class ItemOSCExtension(OSCExtension[pystac.Item]):
             )
         )
         if product.documentation:
-            self.item.add_link(
+            self.collection.add_link(
                 pystac.Link(
                     pystac.RelType.VIA,
                     product.documentation,
@@ -187,20 +149,20 @@ class ItemOSCExtension(OSCExtension[pystac.Item]):
             }
         )
 
-        common = pystac.CommonMetadata(self.item)
+        common = pystac.CommonMetadata(self.collection)
         if project.start:
             common.start_datetime = project.start
         if project.end:
             common.end_datetime = project.end
 
-        self.item.add_link(
+        self.collection.add_link(
             pystac.Link(
                 pystac.RelType.VIA,
                 project.website,
                 title="Website",
             )
         )
-        self.item.add_link(
+        self.collection.add_link(
             pystac.Link(
                 pystac.RelType.VIA,
                 project.eo4_society_link,
@@ -208,21 +170,60 @@ class ItemOSCExtension(OSCExtension[pystac.Item]):
             )
         )
 
+    # def apply_theme(self, theme: Theme):
+    #     self.collection.extra_fields = {
+    #         TYPE_PROP: "Theme",
+    #     }
+    #     self.collection.add_link(
+    #         pystac.Link(
+    #             pystac.RelType.VIA,
+    #             theme.link,
+    #             title="Link",
+    #         )
+    #     )
+    #     if theme.image:
+    #         self.collection.add_asset(
+    #             "image",
+    #             pystac.Asset(
+    #                 theme.image,
+    #                 title="image",
+    #                 roles=["thumbnail"],
+    #                 media_type=mimetypes.guess_type(theme.image)[0],
+    #             ),
+    #         )
 
-class OSCItem(pystac.Item):
-    """ """
+    # def apply_variable(self, variable: Variable):
+    #     self.collection.extra_fields = {
+    #         THEME_PROP: variable.theme,
+    #         TYPE_PROP: "Variable",
+    #     }
+    #     self.collection.add_link(
+    #         pystac.Link(
+    #             pystac.RelType.VIA,
+    #             variable.link,
+    #             title="Link",
+    #         )
+    #     )
 
-    def set_collection(
-        self, collection: Optional[pystac.Collection]
-    ) -> "OSCItem":
-        """ """
-        # self.remove_links(pystac.RelType.COLLECTION)
-        self.collection_id = None
-        if collection is not None:
-            self.add_link(pystac.Link.collection(collection))
-            # self.collection_id = collection.id
 
-        return self
+class ItemOSCExtension(OSCExtension[pystac.Item]):
+    pass
+
+
+# class OSCItem(pystac.Item):
+#     """ """
+
+#     def set_collection(
+#         self, collection: Optional[pystac.Collection]
+#     ) -> "OSCItem":
+#         """ """
+#         # self.remove_links(pystac.RelType.COLLECTION)
+#         self.collection_id = None
+#         if collection is not None:
+#             self.add_link(pystac.Link.collection(collection))
+#             # self.collection_id = collection.id
+
+#         return self
 
 
 def item_from_product(
@@ -252,6 +253,40 @@ def item_from_product(
         pystac.CommonMetadata(item).updated = update_datetime
 
     return item
+
+
+def collection_from_product(product: Product) -> pystac.Collection:
+    """Create a pystac.Collection from a given Product
+
+    Args:
+        product (Product): the product to convert
+
+    Returns:
+        pystac.Collection: the created collection
+    """
+    slug = slugify(product.id)
+    collection = pystac.Collection(
+        slug,
+        product.description,
+        extent=pystac.Extent(
+            pystac.SpatialExtent(
+                product.geometry.bounds
+                if product.geometry else
+                [-180.0, -90.0, 180.0, 90.0]
+            ),
+            pystac.TemporalExtent([[product.start, product.end]]),
+        ),
+        title=product.title,
+    )
+
+    osc_ext: CollectionOSCExtension = OSCExtension.ext(collection, True)
+    osc_ext.apply_product(product)
+    if product.doi:
+        sci_ext = pystac.extensions.scientific.ScientificExtension.ext(
+            collection, True
+        )
+        sci_ext.apply(product.doi)
+    return collection
 
 
 def product_from_item(item: pystac.Item) -> Product:
@@ -305,6 +340,27 @@ def item_from_project(
         pystac.CommonMetadata(item).updated = update_datetime
 
     return item
+
+
+def collection_from_project(project: Project) -> pystac.Item:
+    collection = pystac.Collection(
+        slugify(project.name),
+        project.description,
+        extent=pystac.Extent(
+            # pystac.SpatialExtent([-180.0, -90.0, 180.0, 90.0]),
+            pystac.SpatialExtent([[]]),
+            pystac.TemporalExtent([[project.start, project.end]]),
+        ),
+        title=project.title,
+    )
+
+    osc_ext: CollectionOSCExtension = OSCExtension.ext(collection, True)
+    osc_ext.apply_project(project)
+
+    # if update_datetime:
+    #     pystac.CommonMetadata(item).updated = update_datetime
+
+    return collection
 
 
 def project_from_item(item: pystac.Item) -> Project:
@@ -389,6 +445,7 @@ def build_catalog(
         if collection:
             collection.add_item(product_item)
         else:
+            print(product_item.properties[VARIABLE_PROP])
             print(
                 f"{product_item.self_href}: Missing variable "
                 f"{product_item.properties[VARIABLE_PROP]}"
