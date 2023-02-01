@@ -114,7 +114,7 @@ def convert_csvs(
             indent=2,
         )
 
-    # root stuff
+    # Add themes, variables and eo-missions JSON files as assets
     root.add_asset(
         "themes",
         pystac.Asset("./themes.json", "Themes", "Themes", "application/json"),
@@ -137,29 +137,17 @@ def convert_csvs(
 
     root.normalize_hrefs(
         out_dir,
-        pystac.layout.TemplateLayoutStrategy(
-            item_template="items/${id}/${id}.json",
-            collection_template="collections/${id}/collection.json",
-        ),
+        # LAYOUT_STRATEGY,
     )
 
-    root.save(pystac.CatalogType.ABSOLUTE_PUBLISHED, out_dir)
-
-    # store_variables(variables, os.path.join(out_dir, "variables"))
-    # store_themes(themes, os.path.join(out_dir, "themes"))
-    # store_projects(
-    #     projects, os.path.join(out_dir, "projects"), update_timestamp
-    # )
-    # store_products(
-    #     products, os.path.join(out_dir, "products"), update_timestamp
-    # )
+    root.save(pystac.CatalogType.SELF_CONTAINED, out_dir)
 
 
 def validate_project(
     collection: pystac.Collection, themes: set[str]
 ) -> list[str]:
     errors = []
-    for theme in collection.extra_fields["osc:themes"]:
+    for theme in collection.extra_fields[THEMES_PROP]:
         if theme not in themes:
             errors.append(f"Theme '{theme}' not valid")
     return errors
@@ -172,13 +160,13 @@ def validate_product(
     eo_missions: set[str],
 ) -> list[str]:
     errors = []
-    variable = collection.extra_fields["osc:variable"]
+    variable = collection.extra_fields[VARIABLE_PROP]
     if variable not in variables:
         errors.append(f"Variable '{variable}' not valid")
-    for theme in collection.extra_fields["osc:themes"]:
+    for theme in collection.extra_fields[THEMES_PROP]:
         if theme not in themes:
             errors.append(f"Theme '{theme}' not valid")
-    for eo_mission in collection.extra_fields["osc:missions"]:
+    for eo_mission in collection.extra_fields[MISSIONS_PROP]:
         if eo_mission not in eo_missions:
             errors.append(f"EO Mission '{eo_mission}' not valid")
     return errors
@@ -209,140 +197,168 @@ def validate_catalog(data_dir: str):
             if ret:
                 validation_errors.append((product_collection, ret))
 
+    from pprint import pprint
+
+    pprint(validation_errors)
     # TODO: raise Exception if validation_errors
 
 
-def build_dist(data_dir: str, out_dir: str, root_href: str, add_iso_metadata: bool = True):
+def set_update_timestamps(catalog: pystac.Catalog) -> datetime:
+    """Updates the `updated` field in the catalog according to the underlying
+    files last modification time and its included Items and children. This also
+    updates the included STAC Items `updated` property respectively.
+
+    This function recurses into its child catalogs.
+
+    The resulting `updated` time is the latest of the following:
+
+        - the child catalogs `updated` timestamp, which are resolved first
+        - its directly included items
+        - the modification time of the catalog file itself
+
+    Args:
+        catalog (pystac.Catalog): the catalog to update the timestamp for
+
+    Returns:
+        datetime: the resulting timestamp
+    """
+    updated = datetime.fromtimestamp(
+        os.path.getmtime(catalog.get_self_href()), tz=timezone.utc
+    )
+
+    for child in catalog.get_children():
+        updated = max(updated, set_update_timestamps(child))
+
+    for item in catalog.get_items():
+        item_updated = datetime.fromtimestamp(
+            os.path.getmtime(item.get_self_href()), tz=timezone.utc
+        )
+        pystac.CommonMetadata(item).updated = item_updated
+        updated = max(updated, item_updated)
+
+    pystac.CommonMetadata(catalog).updated = updated
+    return updated
+
+
+def make_collection_assets_absolute(collection: pystac.Collection):
+    for asset in collection.assets.values():
+        asset.href = pystac.utils.make_absolute_href(
+            asset.href, collection.get_self_href()
+        )
+
+
+def build_dist(
+    data_dir: str,
+    out_dir: str,
+    root_href: str,
+    add_iso_metadata: bool = True,
+    pretty_print: bool = True,
+    update_timestamps: bool = True,
+):
     shutil.copytree(
         data_dir,
         out_dir,
-        # dirs_exist_ok=True,
     )
 
     root: pystac.Collection = pystac.read_file(
         os.path.join(out_dir, "collection.json")
     )
 
-    root.normalize_hrefs(
-        root_href,
-        pystac.layout.TemplateLayoutStrategy(
-            item_template="items/${id}/${id}.json",
-            collection_template="collections/${id}/collection.json",
-        ),
-    )
-    root.make_all_asset_hrefs_absolute()
-    root.save(
-        pystac.CatalogType.ABSOLUTE_PUBLISHED,
-        out_dir
-    )
+    if update_timestamps:
+        set_update_timestamps(root)
 
+    assets = root.assets
+    with open(os.path.join(data_dir, assets["themes"].href)) as f:
+        themes = [Theme(**theme) for theme in json.load(f)]
+    with open(os.path.join(data_dir, assets["variables"].href)) as f:
+        variables = [Variable(**variable) for variable in json.load(f)]
+    with open(os.path.join(data_dir, assets["eo-missions"].href)) as f:
+        eo_missions = [EOMission(**eo_mission) for eo_mission in json.load(f)]
 
-def _build_dist(
-    data_dir: str,
-    out_dir: str,
-    pretty_print: bool,
-    root_href: str,
-    add_iso_metadata: bool = True,
-    updated_files: Optional[List[str]] = None,
-    update_timestamp: str = "",
-):
-    variables = load_variables(os.path.join(data_dir, "variables"))
-    themes = load_themes(os.path.join(data_dir, "themes"))
-    project_items = load_project_items(os.path.join(data_dir, "projects"))
-    product_items = load_product_items(os.path.join(data_dir, "products"))
+    if update_timestamps:
+        pass
 
-    # update the "updated" field
-    for updated_file in updated_files or []:
-        items = chain(
-            (item[1] for item in project_items),
-            (item[1] for item in product_items),
-        )
-        for item in items:
-            try:
-                if os.path.samefile(item.self_href, updated_file):
-                    pystac.CommonMetadata(item).updated = update_timestamp
-                    break
-            except FileNotFoundError:
-                print(f"updated file {updated_file} not found")
-                break
-        else:
-            print(f"updated file {updated_file} not found")
+    root.normalize_hrefs(root_href)
 
-    catalog = build_catalog(themes, variables, project_items, product_items)
-
-    # making sure output directories exist
-    os.makedirs(os.path.join(out_dir, "projects/iso"))
-    os.makedirs(os.path.join(out_dir, "products/iso"))
-
-    project_parent_identifiers = {
-        project[0].name: project[0].id for project in project_items
-    }
-
+    # Handle ISO metadata
     if add_iso_metadata:
-        # generate ISO metadata for each project and add it as an asset
-        for project, project_item in project_items:
-            iso_xml = generate_project_metadata(
-                project,
-                urljoin(root_href, f"projects/{slugify(project_item.id)}.json"),
+        for project_collection in root.get_children():
+            # create and store ISO metadata for the project
+            iso_xml = generate_project_metadata(project_collection)
+            href = os.path.join(
+                out_dir,
+                "collections",
+                project_collection.id,
+                "iso.xml",
             )
-            href = os.path.join("./iso", f"{project.id}.xml")
-            with open(os.path.join(out_dir, "projects", href), "w") as f:
+            with open(href, "w") as f:
                 f.write(iso_xml)
-            project_item.add_asset(
-                "iso-metadata", pystac.Asset(href, roles=["metadata"])
+            project_collection.add_asset(
+                "iso-metadata",
+                pystac.Asset(
+                    "./iso.xml",
+                    roles=["metadata"],
+                    media_type="application/xml",
+                ),
             )
+            make_collection_assets_absolute(project_collection)
 
-        # generate ISO metadata for each product and add it as an asset
-        for product, product_item in product_items:
-            iso_xml = generate_product_metadata(
-                product,
-                project_parent_identifiers.get(product.project),
-                urljoin(root_href, f"products/{slugify(product_item.id)}.json"),
-            )
-            href = os.path.join("./iso", f"{product.id}.xml")
-            with open(os.path.join(out_dir, "products", href), "w") as f:
-                f.write(iso_xml)
-            product_item.add_asset(
-                "iso-metadata", pystac.Asset(href, roles=["metadata"])
-            )
+            # create and store ISO metadata for the products
+            for product_collection in project_collection.get_children():
+                iso_xml = generate_product_metadata(product_collection)
+                href = os.path.join(
+                    out_dir,
+                    "collections",
+                    project_collection.id,
+                    "collections",
+                    product_collection.id,
+                    "iso.xml",
+                )
+                with open(href, "w") as f:
+                    f.write(iso_xml)
+                product_collection.add_asset(
+                    "iso-metadata",
+                    pystac.Asset(
+                        "./iso.xml",
+                        roles=["metadata"],
+                        media_type="application/xml",
+                    ),
+                )
+                make_collection_assets_absolute(project_collection)
 
+    # create and store metrics for the root
     metrics = build_metrics(
         "OSC-Catalog",
+        root,
         themes,
         variables,
-        [project[0] for project in project_items],
-        [product[0] for product in product_items],
+        eo_missions,
     )
     with open(os.path.join(out_dir, "metrics.json"), "w") as f:
         json.dump(metrics, f, indent=2 if pretty_print else None)
 
-    tree = build_codelists(themes, variables, [])
+    root.add_asset(
+        "metrics",
+        pystac.Asset(
+            "./metrics.json", roles=["metadata"], media_type="application/json"
+        ),
+    )
+
+    # create and store codelists
+    tree = build_codelists(themes, variables, eo_missions)
     tree.write(
         os.path.join(out_dir, "codelists.xml"), pretty_print=pretty_print
     )
-
-    catalog.add_link(
-        pystac.Link(
-            pystac.RelType.ALTERNATE,
-            urljoin(root_href, "metrics.json"),
-            "application/json",
-        )
+    root.add_asset(
+        "codelists",
+        pystac.Asset(
+            "./codelists.xml", roles=["metadata"], media_type="application/xml"
+        ),
     )
-    catalog.add_link(
-        pystac.Link(
-            pystac.RelType.ALTERNATE,
-            urljoin(root_href, "codelists.xml"),
-            "application/xml",
-        )
-    )
-    save_catalog(catalog, out_dir, root_href)
 
-    # copy image directories if they exist
-    for typedir in ["variables", "themes", "projects", "products"]:
-        src_dir = os.path.join(data_dir, typedir, "images")
-        if os.path.isdir(src_dir):
-            shutil.copytree(
-                src_dir,
-                os.path.join(out_dir, typedir, "images"),
-                dirs_exist_ok=True,
-            )
+    # make all collection assets absolute
+    make_collection_assets_absolute(root)
+
+    # final href adjustments
+    root.make_all_asset_hrefs_absolute()
+    root.save(pystac.CatalogType.ABSOLUTE_PUBLISHED, out_dir)
