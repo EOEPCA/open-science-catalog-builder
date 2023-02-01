@@ -1,5 +1,5 @@
 from datetime import date, datetime, time, timezone
-from typing import List, Literal, TextIO, Union
+from typing import List, Literal, TextIO, Union, cast
 import csv
 import json
 from urllib.parse import urlparse
@@ -23,7 +23,6 @@ def parse_geometry(source: str) -> geometry._Geometry:
     if not source:
         pass
     elif source.startswith("Multipolygon"):
-        # geom = geometry.from_wkt(source.replace("Multipolygon", "MULTIPOLYGON"))
         # TODO: figure out a way to parse this
         pass
     else:
@@ -39,10 +38,6 @@ def parse_geometry(source: str) -> geometry._Geometry:
             geom = geometry.Polygon(shell, holes or None)
 
     return geom
-
-    # if geom:
-    #     return geom.__geo_interface__
-    # return None
 
 
 def parse_released(value: str) -> Union[date, None, Literal["Planned"]]:
@@ -71,12 +66,14 @@ def load_orig_products(file: TextIO) -> List[Product]:
             doi=urlparse(line["DOI"]).path[1:] if line["DOI"] else None,
             version=line["Version"] or None,
             start=datetime.combine(
-                parse_decimal_date(line["Start"]), time.min, timezone.utc
+                cast(datetime, parse_decimal_date(line["Start"])),
+                time.min,
+                timezone.utc,
             )
             if line["Start"]
             else None,
             end=datetime.combine(
-                parse_decimal_date(line["End"]),
+                cast(datetime, parse_decimal_date(line["End"])),
                 time.max.replace(microsecond=0),
                 timezone.utc,
             )

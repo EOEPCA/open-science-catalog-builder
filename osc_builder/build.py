@@ -1,28 +1,17 @@
-from datetime import datetime
+from datetime import datetime, timezone
 import json
-from itertools import chain
 import os
 import os.path
 import shutil
-from typing import TextIO, Optional, List
-from urllib.parse import urljoin
+from typing import TextIO
 
 import pystac
 import pystac.layout
+import pystac.utils
 
 from slugify import slugify
 
 from .codelist import build_codelists
-from .io import (
-    load_product_items,
-    load_project_items,
-    load_themes,
-    load_variables,
-    store_products,
-    store_projects,
-    store_themes,
-    store_variables,
-)
 from .iso import generate_product_metadata, generate_project_metadata
 from .origcsv import (
     load_orig_products,
@@ -32,8 +21,20 @@ from .origcsv import (
     load_orig_eo_missions,
 )
 from .metrics import build_metrics
-from .stac import build_catalog, save_catalog
-from .stac import collection_from_product, collection_from_project
+from .stac import (
+    MISSIONS_PROP,
+    VARIABLE_PROP,
+    THEMES_PROP,
+    collection_from_product,
+    collection_from_project,
+)
+from .types import Theme, Variable, EOMission
+
+
+# LAYOUT_STRATEGY = pystac.layout.TemplateLayoutStrategy(
+#     item_template="items/${id}/${id}.json",
+#     collection_template="collections/${id}/collection.json",
+# )
 
 
 def convert_csvs(
@@ -43,7 +44,6 @@ def convert_csvs(
     projects_file: TextIO,
     products_file: TextIO,
     out_dir: str,
-    update_timestamp: datetime,
 ):
     variables = load_orig_variables(variables_file)
     themes = load_orig_themes(themes_file)
