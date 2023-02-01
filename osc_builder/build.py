@@ -287,7 +287,6 @@ def build_dist(
             iso_xml = generate_project_metadata(project_collection)
             href = os.path.join(
                 out_dir,
-                "collections",
                 project_collection.id,
                 "iso.xml",
             )
@@ -308,9 +307,7 @@ def build_dist(
                 iso_xml = generate_product_metadata(product_collection)
                 href = os.path.join(
                     out_dir,
-                    "collections",
                     project_collection.id,
-                    "collections",
                     product_collection.id,
                     "iso.xml",
                 )
