@@ -9,12 +9,7 @@ from slugify import slugify
 from .types import Product, Project, Theme, Variable, EOMission
 
 
-class GlobalSummary(TypedDict):
-    years: List[int]
-    numberOfProducts: int
-    numberOfProjects: int
-    numberOfVariables: int
-    numberOfThemes: int
+
 
 
 class VariableSummary(TypedDict):
@@ -22,23 +17,17 @@ class VariableSummary(TypedDict):
     numberOfProducts: int
 
 
+class VariableMetrics(TypedDict):
+    name: str
+    description: str
+    summary: VariableSummary
+
+
 class ThemeSummary(TypedDict):
     years: List[int]
     numberOfProducts: int
     numberOfProjects: int
     numberOfVariables: int
-
-
-class MissionSummary(TypedDict):
-    years: List[int]
-    numberOfProducts: int
-    numberOfVariables: int
-
-
-class VariableMetrics(TypedDict):
-    name: str
-    description: str
-    summary: VariableSummary
 
 
 class ThemeMetrics(TypedDict):
@@ -50,9 +39,23 @@ class ThemeMetrics(TypedDict):
     variables: List[VariableMetrics]
 
 
+class MissionSummary(TypedDict):
+    years: List[int]
+    numberOfProducts: int
+    numberOfVariables: int
+
+
 class MissionMetrics(TypedDict):
     name: str
     summary: MissionSummary
+
+
+class GlobalSummary(TypedDict):
+    years: List[int]
+    numberOfProducts: int
+    numberOfProjects: int
+    numberOfVariables: int
+    numberOfThemes: int
 
 
 class GlobalMetrics(TypedDict):
@@ -82,8 +85,7 @@ def intervals_to_years(intervals: List[List[datetime]]) -> set[int]:
     return result
 
 
-
-def build_metrics_(
+def build_metrics(
     id: str,
     root: pystac.Collection,
     themes: List[Theme],
@@ -95,15 +97,22 @@ def build_metrics_(
         theme.name: {
             "projects": [],
             "products": [],
-            "variables_infos": [],
+            "variable_infos": [],
+            "years": set(),
+            "description": theme.description,
+            "image": theme.image,
+            "website": theme.link,
         }
         for theme in themes
     }
 
     variable_infos = {
         variable.name: {
+            "name": variable.name,
+            "description": variable.description,
             "theme": variable.theme,
-            "products": []
+            "products": [],
+            "years": set(),
         }
         for variable in variables
     }
@@ -111,50 +120,101 @@ def build_metrics_(
     eo_mission_infos = {
         eo_mission.name: {
             "products": [],
+            "projects": [],
             "variables": set(),
+            "years": set(),
         }
         for eo_mission in eo_missions
+    }
+
+    global_info = {
+        "products": [],
+        "projects": [],
     }
 
     for variable_info in variable_infos.values():
         theme_infos[variable_info["theme"]]["variable_infos"].append(variable_info)
 
     for project_collection in root.get_children():
+        global_info["projects"].append(project_collection)
         for theme in project_collection.extra_fields.get("osc:themes", []):
             theme_infos[theme]["projects"].append(project_collection)
 
         for product_collection in project_collection.get_children():
+            global_info["products"].append(product_collection)
             for theme in product_collection.extra_fields.get("osc:themes", []):
-                theme_infos[theme]["products"].append(product_collection)
+                theme_info = theme_infos[theme]
+                theme_info["products"].append(product_collection)
+                theme_info["years"] |= intervals_to_years(product_collection.extent.temporal.intervals)
             variable = product_collection.extra_fields["osc:variable"]
-            variable_infos[variable]["products"].append(product_collection)
+            variable_info = variable_infos[variable]
+            variable_info["products"].append(product_collection)
+            variable_info["years"] |= intervals_to_years(product_collection.extent.temporal.intervals)
             for eo_mission in product_collection.extra_fields.get("osc:missions", []):
-                eo_mission_infos[eo_mission]["products"].append(product_collection)
-                eo_mission_infos[eo_mission]["variables"].add(variable)
+                eo_mission_info = eo_mission_infos[eo_mission]
+                eo_mission_info["products"].append(product_collection)
+                eo_mission_info["variables"].add(variable)
+                eo_mission_info["years"] |= intervals_to_years(product_collection.extent.temporal.intervals)
 
-            product_collection.extent.temporal.intervals[0][0]
-
-
+                if project_collection not in eo_mission_info["projects"]:
+                    eo_mission_info["projects"].append(project_collection)
 
     return {
         "id": id,
         "summary": {
             "years": sorted(
                 reduce(or_, [
-                    set(theme["summary"]["years"])
-                    for theme in theme_metrics
+                    intervals_to_years(
+                        collection.extent.temporal.intervals
+                    )
+                    for collection in global_info["products"]
                 ])
             ),
-            "numberOfProducts": len(global_products),
-            "numberOfProjects": len(global_projects),
+            "numberOfProducts": len(global_info["products"]),
+            "numberOfProjects": len(global_info["projects"]),
             "numberOfVariables": len(variables),
             "numberOfThemes": len(themes),
         },
-        "themes": theme_metrics,
-        "missions": mission_metrics,
+        "themes": [
+            {
+                "name": name,
+                "description": theme_info["description"],
+                "image": theme_info["image"],
+                "website": theme_info["website"],
+                "summary": {
+                    "years": sorted(theme_info["years"]),
+                    "numberOfProducts": len(theme_info["products"]),
+                    "numberOfProjects": len(theme_info["projects"]),
+                    "numberOfVariables": len(theme_info["variable_infos"]),
+                },
+                "variables": [
+                    {
+                        "name": variable_info["name"],
+                        "description": variable_info["description"],
+                        "summary": {
+                            "years": sorted(variable_info["years"]),
+                            "numberOfProducts": len(variable_info["products"])
+                        }
+                    }
+                    for variable_info in theme_info["variable_infos"]
+                ]
+            }
+            for name, theme_info in theme_infos.items()
+        ],
+        "missions": [
+            {
+                "name": name,
+                "summary": {
+                    "years": sorted(eo_mission_info["years"]),
+                    "numberOfProducts": len(eo_mission_info["products"]),
+                    "numberOfProjects": len(eo_mission_info["projects"]),
+                }
+            }
+            for name, eo_mission_info in eo_mission_infos.items()
+        ],
     }
 
-def build_metrics(
+def build_metrics__(
     id: str,
     themes: List[Theme],
     variables: List[Variable],
