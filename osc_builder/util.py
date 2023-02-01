@@ -14,6 +14,7 @@ def parse_decimal_date(source: Optional[str]) -> Optional[date]:
     elif dot_count == 2:
         year, month, day = source.split(".")
         return date(int(year), int(month), int(day))
+    return None
 
 
 def get_depth(maybe_list: Any) -> int:
