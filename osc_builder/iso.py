@@ -1,222 +1,227 @@
 from copy import deepcopy
 from datetime import datetime
-from typing import List, Optional
 from urllib.parse import urlparse
 
 from pygeometa.schemas.iso19139 import ISO19139OutputSchema
 from pygeometa.schemas.iso19139_2 import ISO19139_2OutputSchema
+import pystac
 
-from .types import Product, Project
+from .stac import (
+    NAME_PROP,
+    THEMES_PROP,
+    VARIABLE_PROP,
+    STATUS_PROP,
+    REGION_PROP,
+    CONSORTIUM_PROP,
+    TECHNICAL_OFFICER_PROP,
+    MISSIONS_PROP,
+)
 
-LANGUAGE = 'eng'
+LANGUAGE = "eng"
 
 MCF_TEMPLATE = {
-    'mcf': {
-        'version': '1.0'
+    "mcf": {"version": "1.0"},
+    "metadata": {"language": LANGUAGE, "charset": "utf8"},
+    "spatial": {"datatype": "grid", "geomtype": "solid"},
+    "identification": {
+        "charset": "utf8",
+        "language": "missing",
+        "dates": {},
+        "keywords": {},
+        "status": "onGoing",
+        "maintenancefrequency": "continual",
     },
-    'metadata': {
-        'language': LANGUAGE,
-        'charset': 'utf8'
-    },
-    'spatial': {
-        'datatype': 'grid',
-        'geomtype': 'solid'
-    },
-    'identification': {
-        'charset': 'utf8',
-        'language': 'missing',
-        'dates': {},
-        'keywords': {},
-        'status': 'onGoing',
-        'maintenancefrequency': 'continual'
-    },
-    'content_info': {
-        'type': 'image',
-        'dimensions': []
-    },
-    'contact': {
-        'pointOfContact': {},
-        'distributor': {}
-    },
-    'distribution': {}
+    "content_info": {"type": "image", "dimensions": []},
+    "contact": {"pointOfContact": {}, "distributor": {}},
+    "distribution": {},
 }
 
 STATUSES = {
-    'COMPLETED': 'completed',
-    'ONGOING': 'onGoing',
-    'Planned': 'planned',
-    'PLANNED': 'planned',
+    "COMPLETED": "completed",
+    "ONGOING": "onGoing",
+    "Planned": "planned",
+    "PLANNED": "planned",
 }
 
 
 def build_theme_keywords(themes: list) -> dict:
     keywords = {
-        'keywords': list([f'theme:{t}' for t in themes]),
-        'keywords_type': 'theme'
+        "keywords": list([f"theme:{t}" for t in themes]),
+        "keywords_type": "theme",
     }
 
     return keywords
 
 
-def generate_project_metadata(project: Project, self_link: Optional[str]) -> str:
+def generate_project_metadata(project: pystac.Collection) -> str:
     mcf = deepcopy(MCF_TEMPLATE)
     now = datetime.now().isoformat()
+    extra = project.extra_fields
+    mcf["metadata"]["identifier"] = project.id
+    mcf["metadata"]["hierarchylevel"] = "datasetcollection"
+    mcf["metadata"]["datestamp"] = now
+    mcf["identification"]["title"] = project.title
+    mcf["identification"]["abstract"] = project.description
+    mcf["identification"]["status"] = STATUSES[extra[STATUS_PROP]]
 
-    mcf['metadata']['identifier'] = project.id
-    mcf['metadata']['hierarchylevel'] = 'datasetcollection'
-    mcf['metadata']['datestamp'] = now
-    mcf['identification']['title'] = project.title
-    mcf['identification']['abstract'] = project.description
-    mcf['identification']['status'] = STATUSES[project.status.value]
+    mcf["identification"]["keywords"]["themes"] = build_theme_keywords(
+        extra[THEMES_PROP]
+    )
 
-    mcf['identification']['keywords']['themes'] = build_theme_keywords(project.themes)
-
-    mcf['identification']['keywords']['short-name'] = {
-        'keywords': [project.name],
-        'keywords_type': 'theme'
+    mcf["identification"]["keywords"]["short-name"] = {
+        "keywords": [extra[NAME_PROP]],
+        "keywords_type": "theme",
     }
 
-    mcf['identification']['extents'] = {
-        'spatial': [{
-            'bbox': [-180, -90, 180, 90],
-            'crs': 4326
-        }],
-        'temporal': [{
-            'begin': project.start,
-            'end': project.end
-        }]
+    mcf["identification"]["extents"] = {
+        "spatial": [
+            {"bbox": bbox, "crs": 4326}
+            for bbox in project.extent.spatial.bboxes
+        ],
+        "temporal": [
+            {"begin": start, "end": end}
+            for start, end in project.extent.temporal.intervals
+        ],
     }
 
-    for consortium in project.consortium:
-        mcf['contact']['pointOfContact'] = {
-            'organization': ', '.join(project.consortium),
-            'individualname': project.technical_officer.name,
-            'email': project.technical_officer.e_mail
-        }
-
-    mcf['distribution'] = {
-        'website': {
-            'url': project.website,
-            'rel': 'describedBy',
-            'type': 'WWW:LINK',
-            'name': 'website',
-            'description': 'website',
-            'function': 'information'
-        }
+    mcf["contact"]["pointOfContact"] = {
+        "organization": ", ".join(extra[CONSORTIUM_PROP]),
+        "individualname": extra[TECHNICAL_OFFICER_PROP]["name"],
+        "email": extra[TECHNICAL_OFFICER_PROP]["e-mail"],
     }
 
-    if self_link:
-        mcf['distribution']['self'] = {
-            'url': self_link,
-            'rel': 'self',
-            'type': 'WWW:LINK',
-            'name': 'self',
-            'description': 'self',
-            'function': 'download'
+    website_link = next(
+        (link for link in project.get_links() if link.title == "Website"), None
+    )
+    eo4_society_link = next(
+        (
+            link
+            for link in project.get_links()
+            if link.title == "EO4Society Link"
+        ),
+        None,
+    )
+
+    if website_link:
+        mcf["distribution"] = {
+            "website": {
+                "url": website_link.get_absolute_href(),
+                "rel": "describedBy",
+                "type": "WWW:LINK",
+                "name": "website",
+                "description": "website",
+                "function": "information",
+            }
         }
 
-    if project.eo4_society_link:
-        mcf['identification']['url'] = project.eo4_society_link
+    mcf["distribution"]["self"] = {
+        "url": project.get_self_href(),
+        "rel": "self",
+        "type": "WWW:LINK",
+        "name": "self",
+        "description": "self",
+        "function": "download",
+    }
+
+    if eo4_society_link:
+        mcf["identification"]["url"] = eo4_society_link.get_absolute_href()
 
     return ISO19139OutputSchema().write(mcf)
 
 
-def generate_product_metadata(product: Product, parent_identifier: Optional[str], self_link: Optional[str]) -> str:
+def generate_product_metadata(product: pystac.Collection) -> str:
     mcf = deepcopy(MCF_TEMPLATE)
     now = datetime.now().isoformat()
 
-    mcf['metadata']['identifier'] = product.id
-    mcf['metadata']['hierarchylevel'] = 'dataset'
-    mcf['metadata']['datestamp'] = now
-    mcf['identification']['title'] = product.title
-    mcf['identification']['abstract'] = product.description
-    mcf['identification']['status'] = STATUSES[product.status.value]
+    extra = product.extra_fields
+    common = pystac.CommonMetadata(product)
 
-    if parent_identifier:
-        mcf['metadata']['parentidentifier'] = parent_identifier
+    mcf["metadata"]["identifier"] = product.id
+    mcf["metadata"]["hierarchylevel"] = "dataset"
+    mcf["metadata"]["datestamp"] = now
+    mcf["identification"]["title"] = product.title
+    mcf["identification"]["abstract"] = product.description
+    mcf["identification"]["status"] = STATUSES[extra[STATUS_PROP]]
+    mcf["metadata"]["parentidentifier"] = product.get_parent().id
 
-    mcf['identification']['keywords']['default'] = {
-        'keywords': [f'variable:{product.variable}'],
-        'keywords_type': 'theme'
+    mcf["identification"]["keywords"]["default"] = {
+        "keywords": [f"variable:{extra[VARIABLE_PROP]}"],
+        "keywords_type": "theme",
     }
 
-    mcf['identification']['keywords']['themes'] = build_theme_keywords(product.themes)
+    mcf["identification"]["keywords"]["themes"] = build_theme_keywords(
+        extra[THEMES_PROP]
+    )
 
-    if product.doi:
-        doi_url = urlparse(product.doi)
-        mcf['identification']['doi'] = doi_url.path.lstrip('/')
+    if "sci:doi" in extra:
+        doi_url = urlparse(extra["sci:doi"])
+        mcf["identification"]["doi"] = doi_url.path.lstrip("/")
 
-    if product.region:
-        mcf['identification']['keywords']['region'] = {
-            'keywords': [product.region],
-            'keywords_type': 'theme'
+    if extra[REGION_PROP]:
+        mcf["identification"]["keywords"]["region"] = {
+            "keywords": [extra[REGION_PROP]],
+            "keywords_type": "theme",
         }
 
-    if product.released not in [None, 'Planned']:
-        mcf['identification']['dates'] = {
-            'publication': product.released
-        }
+    if common.created:
+        mcf["identification"]["dates"] = {"publication": common.created}
 
-    if product.geometry:
-        bounds = product.geometry.bounds
-        bbox = [
-            bounds[0],
-            bounds[1],
-            bounds[2],
-            bounds[3]
-        ]
-    else:
-        bbox = [-180, -90, 180, 90]
-
-    mcf['identification']['extents'] = {
-        'spatial': [{
-            'bbox': bbox,
-            'crs': 4326
-        }],
-        'temporal': [{
-            'begin': product.start,
-            'end': product.end
-        }]
+    mcf["identification"]["extents"] = {
+        "spatial": [
+            {"bbox": bbox, "crs": 4326}
+            for bbox in product.extent.spatial.bboxes
+        ],
+        "temporal": [
+            {"begin": start, "end": end}
+            for start, end in product.extent.temporal.intervals
+        ],
     }
 
-    mcf['acquisition'] = {
-        'platforms': [{
-            'identifier': product.eo_missions
-        }]
+    mcf["acquisition"] = {"platforms": [{"identifier": extra[MISSIONS_PROP]}]}
+
+    website_link = next(
+        (lnk for lnk in product.get_links() if lnk.title == "Website"), None
+    )
+    access_link = next(
+        (lnk for lnk in product.get_links() if lnk.title == "Access"), None
+    )
+    documentation_link = next(
+        (lnk for lnk in product.get_links() if lnk.title == "Documentation"),
+        None,
+    )
+
+    if website_link:
+        mcf["distribution"] = {
+            "website": {
+                "url": website_link.get_absolute_href(),
+                "rel": "describedBy",
+                "type": "WWW:LINK",
+                "name": "website",
+                "description": "website",
+                "function": "information",
+            }
+        }
+
+    if access_link:
+        mcf["distribution"]["access"] = {
+            "url": access_link.get_absolute_href(),
+            "rel": "data",
+            "type": "WWW:LINK",
+            "name": "access",
+            "description": "access",
+            "function": "download",
+        }
+
+    mcf["distribution"]["self"] = {
+        "url": product.get_self_href(),
+        "rel": "self",
+        "type": "WWW:LINK",
+        "name": "self",
+        "description": "self",
+        "function": "self",
     }
 
-    mcf['distribution'] = {
-        'website': {
-            'url': product.website,
-            'rel': 'describedBy',
-            'type': 'WWW:LINK',
-            'name': 'website',
-            'description': 'website',
-            'function': 'information'
-        }
-    }
-
-    if product.access:
-        mcf['distribution']['access'] = {
-            'url': product.access,
-            'rel': 'data',
-            'type': 'WWW:LINK',
-            'name': 'access',
-            'description': 'access',
-            'function': 'download'
-        }
-
-    if self_link:
-        mcf['distribution']['self'] = {
-            'url': self_link,
-            'rel': 'self',
-            'type': 'WWW:LINK',
-            'name': 'self',
-            'description': 'self',
-            'function': 'self'
-        }
-
-    if product.documentation:
-        mcf['identification']['url'] = product.documentation
+    if documentation_link:
+        mcf["identification"]["url"] = documentation_link.get_absolute_href()
 
     return ISO19139_2OutputSchema().write(mcf)
