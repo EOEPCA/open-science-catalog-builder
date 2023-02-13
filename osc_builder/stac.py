@@ -129,6 +129,14 @@ class CollectionOSCExtension(OSCExtension[pystac.Collection]):
                 )
             )
 
+        self.collection.keywords = [
+            f"theme:{theme}"
+            for theme in product.themes
+        ] + [
+            f"variable:{product.variable}",
+            f"region:{product.region}"
+        ]
+
     def apply_project(self, project: Project):
         self.properties.update(
             {
@@ -168,6 +176,11 @@ class CollectionOSCExtension(OSCExtension[pystac.Collection]):
                     title="EO4Society Link",
                 )
             )
+
+        self.collection.keywords = [
+            f"theme:{theme}"
+            for theme in project.themes
+        ]
 
 
 class ItemOSCExtension(OSCExtension[pystac.Item]):
