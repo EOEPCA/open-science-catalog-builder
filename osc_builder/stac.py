@@ -130,12 +130,8 @@ class CollectionOSCExtension(OSCExtension[pystac.Collection]):
             )
 
         self.collection.keywords = [
-            f"theme:{theme}"
-            for theme in product.themes
-        ] + [
-            f"variable:{product.variable}",
-            f"region:{product.region}"
-        ]
+            f"theme:{theme}" for theme in product.themes
+        ] + [f"variable:{product.variable}", f"region:{product.region}"]
 
     def apply_project(self, project: Project):
         self.properties.update(
@@ -178,8 +174,7 @@ class CollectionOSCExtension(OSCExtension[pystac.Collection]):
             )
 
         self.collection.keywords = [
-            f"theme:{theme}"
-            for theme in project.themes
+            f"theme:{theme}" for theme in project.themes
         ]
 
 
