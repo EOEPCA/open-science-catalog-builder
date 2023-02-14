@@ -4,6 +4,7 @@ import os
 import os.path
 import shutil
 from typing import TextIO
+from urllib.parse import urlparse
 
 import pystac
 import pystac.layout
@@ -268,6 +269,7 @@ def build_dist(
         out_dir,
     )
 
+    FakeHTTPStacIO.path_prefix = urlparse(root_href).path
     FakeHTTPStacIO.out_dir = out_dir
     pystac.StacIO.set_default(FakeHTTPStacIO)
 

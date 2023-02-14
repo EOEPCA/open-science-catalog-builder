@@ -240,10 +240,15 @@ def collection_from_project(project: Project) -> pystac.Item:
 
 
 class FakeHTTPStacIO(pystac.stac_io.DefaultStacIO):
-    out_dir = os.getcwd()
+    out_dir: str = os.getcwd()
+    path_prefix: str = "/"
 
     def _replace_path(self, href: str) -> str:
-        return join(self.out_dir, urlparse(href).path[1:])
+        path = urlparse(href).path
+        if path.startswith(self.path_prefix):
+            path = path[len(self.path_prefix):]
+
+        return join(self.out_dir, path)
 
     def read_text(self, source: str, *args, **kwargs) -> str:
         return super().read_text(self._replace_path(source), *args, **kwargs)
