@@ -242,13 +242,13 @@ def collection_from_project(project: Project) -> pystac.Item:
 class FakeHTTPStacIO(pystac.stac_io.DefaultStacIO):
     out_dir = os.getcwd()
 
-    def _replace_path(self, href: pystac.link.HREF) -> str:
+    def _replace_path(self, href: str) -> str:
         return join(self.out_dir, urlparse(href).path[1:])
 
-    def read_text(self, source: pystac.link.HREF, *args, **kwargs) -> str:
+    def read_text(self, source: str, *args, **kwargs) -> str:
         return super().read_text(self._replace_path(source), *args, **kwargs)
 
     def write_text(
-        self, dest: pystac.link.HREF, txt: str, *args, **kwargs
+        self, dest: str, txt: str, *args, **kwargs
     ) -> None:
         super().write_text(self._replace_path(dest), txt, *args, **kwargs)
