@@ -1,4 +1,6 @@
 from datetime import date, datetime, time, timezone
+import os
+from os.path import join
 from typing import Generic, TypeVar, Union, cast
 from urllib.parse import urlparse
 
@@ -11,6 +13,7 @@ from pystac.extensions.base import (
     PropertiesExtension,
 )
 import pystac.stac_io
+import pystac.link
 
 from .types import Product, Project
 
@@ -236,18 +239,16 @@ def collection_from_project(project: Project) -> pystac.Item:
     return collection
 
 
-import os
-from os.path import join
-
-
 class FakeHTTPStacIO(pystac.stac_io.DefaultStacIO):
     out_dir = os.getcwd()
 
-    def _replace_path(self, href: pystac.HREF) -> str:
+    def _replace_path(self, href: pystac.link.HREF) -> str:
         return join(self.out_dir, urlparse(href).path[1:])
 
-    def read_text(self, source: pystac.HREF, *args, **kwargs) -> str:
+    def read_text(self, source: pystac.link.HREF, *args, **kwargs) -> str:
         return super().read_text(self._replace_path(source), *args, **kwargs)
 
-    def write_text(self, dest: pystac.HREF, txt: str, *args, **kwargs) -> None:
+    def write_text(
+        self, dest: pystac.link.HREF, txt: str, *args, **kwargs
+    ) -> None:
         super().write_text(self._replace_path(dest), txt, *args, **kwargs)
