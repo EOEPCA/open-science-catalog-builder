@@ -375,7 +375,7 @@ def build_dist(
     # final href adjustments
     root.make_all_asset_hrefs_absolute()
     root.normalize_hrefs(root_href)
-    root.save(pystac.CatalogType.ABSOLUTE_PUBLISHED, root_href, stac_io=stac_io)
+    root.save(pystac.CatalogType.ABSOLUTE_PUBLISHED, root_href)
 
     for catalog, _, items in root.walk():
-        catalog.save(pystac.CatalogType.ABSOLUTE_PUBLISHED, stac_io=stac_io)
+        catalog.save(pystac.CatalogType.ABSOLUTE_PUBLISHED)
