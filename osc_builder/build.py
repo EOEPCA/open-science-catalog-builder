@@ -205,7 +205,9 @@ def validate_catalog(data_dir: str):
     # TODO: raise Exception if validation_errors
 
 
-def set_update_timestamps(catalog: pystac.Catalog) -> datetime:
+def set_update_timestamps(
+    catalog: pystac.Catalog, stac_io: pystac.StacIO
+) -> datetime:
     """Updates the `updated` field in the catalog according to the underlying
     files last modification time and its included Items and children. This also
     updates the included STAC Items `updated` property respectively.
@@ -225,16 +227,16 @@ def set_update_timestamps(catalog: pystac.Catalog) -> datetime:
         datetime: the resulting timestamp
     """
 
-    io = pystac.StacIO.default()
-    if not isinstance(io, FakeHTTPStacIO):
-        io = None
+    io = None
+    if isinstance(stac_io, FakeHTTPStacIO):
+        io = stac_io
 
     href = catalog.get_self_href()
     path = io._replace_path(href) if io else href
     updated = datetime.fromtimestamp(os.path.getmtime(path), tz=timezone.utc)
 
     for child in catalog.get_children():
-        updated = max(updated, set_update_timestamps(child))
+        updated = max(updated, set_update_timestamps(child, stac_io))
 
     for item in catalog.get_items():
         href = item.get_self_href()
@@ -269,16 +271,20 @@ def build_dist(
         out_dir,
     )
 
-    FakeHTTPStacIO.path_prefix = urlparse(root_href).path
-    FakeHTTPStacIO.out_dir = out_dir
-    pystac.StacIO.set_default(FakeHTTPStacIO)
-
+    stac_io = FakeHTTPStacIO(out_dir, urlparse(root_href).path)
+    pystac.StacIO.set_default(stac_io)
     root: pystac.Collection = pystac.read_file(
-        os.path.join(root_href, "collection.json")
+        os.path.join(root_href, "collection.json"), stac_io=stac_io
     )
 
+    # new_root = pystac.Catalog("ABC", "abc")
+    # new_root.set_self_href(os.path.join(root_href, "catalog.json"))
+    # new_root.add_children(root.get_children())
+    # new_root.save()
+    # root = new_root
+
     if update_timestamps:
-        set_update_timestamps(root)
+        set_update_timestamps(root, stac_io)
 
     assets = root.assets
     with open(os.path.join(data_dir, assets["themes"].href)) as f:
@@ -288,10 +294,7 @@ def build_dist(
     with open(os.path.join(data_dir, assets["eo-missions"].href)) as f:
         eo_missions = [EOMission(**eo_mission) for eo_mission in json.load(f)]
 
-    if update_timestamps:
-        pass
-
-    root.normalize_hrefs(root_href)
+    # root.normalize_hrefs(root_href)
 
     # Handle ISO metadata
     if add_iso_metadata:
@@ -371,4 +374,8 @@ def build_dist(
 
     # final href adjustments
     root.make_all_asset_hrefs_absolute()
-    root.save(pystac.CatalogType.ABSOLUTE_PUBLISHED, root_href)
+    root.normalize_hrefs(root_href)
+    root.save(pystac.CatalogType.ABSOLUTE_PUBLISHED, root_href, stac_io=stac_io)
+
+    for catalog, _, items in root.walk():
+        catalog.save(pystac.CatalogType.ABSOLUTE_PUBLISHED, stac_io=stac_io)

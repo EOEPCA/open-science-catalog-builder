@@ -240,8 +240,13 @@ def collection_from_project(project: Project) -> pystac.Item:
 
 
 class FakeHTTPStacIO(pystac.stac_io.DefaultStacIO):
-    out_dir: str = os.getcwd()
-    path_prefix: str = "/"
+    def __init__(self, out_dir: str, path_prefix: str = "/"):
+        self.out_dir = out_dir
+        self.path_prefix = path_prefix
+
+    def __call__(self):
+        # to allow to set an instance as StacIO.default
+        return self
 
     def _replace_path(self, href: str) -> str:
         path = urlparse(href).path
