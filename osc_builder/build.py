@@ -270,12 +270,14 @@ def build_dist(
         data_dir,
         out_dir,
     )
+    # import os
+    # os.makedirs(out_dir, exist_ok=True)
 
-    stac_io = FakeHTTPStacIO(out_dir, urlparse(root_href).path)
-    pystac.StacIO.set_default(stac_io)
     root: pystac.Collection = pystac.read_file(
-        os.path.join(root_href, "collection.json"), stac_io=stac_io
+        os.path.join(out_dir, "collection.json")
     )
+    # stac_io = FakeHTTPStacIO(out_dir, urlparse(root_href).path)
+    # pystac.StacIO.set_default(stac_io)
 
     # new_root = pystac.Catalog("ABC", "abc")
     # new_root.set_self_href(os.path.join(root_href, "catalog.json"))
@@ -284,7 +286,7 @@ def build_dist(
     # root = new_root
 
     if update_timestamps:
-        set_update_timestamps(root, stac_io)
+        print(set_update_timestamps(root, None))
 
     assets = root.assets
     with open(os.path.join(data_dir, assets["themes"].href)) as f:
@@ -370,12 +372,9 @@ def build_dist(
     )
 
     # make all collection assets absolute
-    make_collection_assets_absolute(root)
+    # make_collection_assets_absolute(root)
 
     # final href adjustments
     root.make_all_asset_hrefs_absolute()
     root.normalize_hrefs(root_href)
-    root.save(pystac.CatalogType.ABSOLUTE_PUBLISHED, root_href)
-
-    for catalog, _, items in root.walk():
-        catalog.save(pystac.CatalogType.ABSOLUTE_PUBLISHED)
+    root.save(pystac.CatalogType.SELF_CONTAINED)

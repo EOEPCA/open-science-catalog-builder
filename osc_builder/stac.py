@@ -249,9 +249,15 @@ class FakeHTTPStacIO(pystac.stac_io.DefaultStacIO):
         return self
 
     def _replace_path(self, href: str) -> str:
+        # if href == "https://constantinius.github.io/osc-demo/world-ocean-circulation/doppler-derived-surface-current-world-ocean-circulation/v1.1/2020/119/20200428T171736-WOC-L2P-CUReul-S1A-OSC_RVL-v1.0-fv1.1.nc/20200428T171736-WOC-L2P-CUReul-S1A-OSC_RVL-v1.0-fv1.1.nc.json":
+        #     breakpoint()
+
+
         path = urlparse(href).path
         if path.startswith(self.path_prefix):
             path = path[len(self.path_prefix):]
+
+
 
         return join(self.out_dir, path)
 
