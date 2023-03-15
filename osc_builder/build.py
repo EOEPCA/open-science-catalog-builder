@@ -270,23 +270,12 @@ def build_dist(
         data_dir,
         out_dir,
     )
-    # import os
-    # os.makedirs(out_dir, exist_ok=True)
-
     root: pystac.Collection = pystac.read_file(
         os.path.join(out_dir, "collection.json")
     )
-    # stac_io = FakeHTTPStacIO(out_dir, urlparse(root_href).path)
-    # pystac.StacIO.set_default(stac_io)
-
-    # new_root = pystac.Catalog("ABC", "abc")
-    # new_root.set_self_href(os.path.join(root_href, "catalog.json"))
-    # new_root.add_children(root.get_children())
-    # new_root.save()
-    # root = new_root
 
     if update_timestamps:
-        print(set_update_timestamps(root, None))
+        set_update_timestamps(root, None)
 
     assets = root.assets
     with open(os.path.join(data_dir, assets["themes"].href)) as f:
@@ -295,8 +284,6 @@ def build_dist(
         variables = [Variable(**variable) for variable in json.load(f)]
     with open(os.path.join(data_dir, assets["eo-missions"].href)) as f:
         eo_missions = [EOMission(**eo_mission) for eo_mission in json.load(f)]
-
-    # root.normalize_hrefs(root_href)
 
     # Handle ISO metadata
     if add_iso_metadata:
@@ -376,5 +363,4 @@ def build_dist(
 
     # final href adjustments
     root.make_all_asset_hrefs_absolute()
-    root.normalize_hrefs(root_href)
-    root.save(pystac.CatalogType.SELF_CONTAINED)
+    root.save(pystac.CatalogType.SELF_CONTAINED, dest_href=out_dir)
