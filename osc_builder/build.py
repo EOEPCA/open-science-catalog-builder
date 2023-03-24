@@ -328,6 +328,13 @@ def build_dist(
                 )
                 make_collection_assets_absolute(project_collection)
 
+    # ensure that all data items beneath a product reference the product
+    # collection.
+    for project_collection in root.get_children():
+        for product_collection in project_collection.get_children():
+            for item in product_collection.get_all_items():
+                item.set_collection(product_collection)
+
     # create and store metrics for the root
     metrics = build_metrics(
         "OSC-Catalog",
