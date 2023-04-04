@@ -4,7 +4,6 @@ import os
 import os.path
 import shutil
 from typing import TextIO
-from urllib.parse import urlparse
 
 import pystac
 import pystac.layout
@@ -97,7 +96,7 @@ def convert_csvs(
                     "name": variable.name,
                     "description": variable.description,
                     "link": variable.link,
-                    "theme": variable.theme,
+                    "themes": variable.themes,
                 }
                 for variable in variables
             ],
@@ -281,7 +280,7 @@ def build_dist(
     with open(os.path.join(data_dir, assets["themes"].href)) as f:
         themes = [Theme(**theme) for theme in json.load(f)]
     with open(os.path.join(data_dir, assets["variables"].href)) as f:
-        variables = [Variable(**variable) for variable in json.load(f)]
+        variables = [Variable.from_raw(variable) for variable in json.load(f)]
     with open(os.path.join(data_dir, assets["eo-missions"].href)) as f:
         eo_missions = [EOMission(**eo_mission) for eo_mission in json.load(f)]
 

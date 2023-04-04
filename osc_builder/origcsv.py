@@ -146,7 +146,7 @@ def load_orig_variables(file: TextIO) -> List[Variable]:
             name=line["variable"],
             description=line["variable description"],
             link=line["link"],
-            theme=line["theme"],
+            themes=[line["theme"]],
         )
         for line in csv.DictReader(file)
     ]

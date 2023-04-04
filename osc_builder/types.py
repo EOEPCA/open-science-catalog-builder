@@ -69,7 +69,14 @@ class Variable:
     name: str
     description: str
     link: str
-    theme: str
+    themes: List[str]
+
+    @classmethod
+    def from_raw(cls, **kwargs):
+        theme = kwargs.pop("theme", None)
+        if theme and "themes" not in kwargs:
+            kwargs["themes"] = [theme]
+        return cls(**kwargs)
 
 
 @dataclass

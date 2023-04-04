@@ -110,7 +110,7 @@ def build_metrics(
         variable.name: {
             "name": variable.name,
             "description": variable.description,
-            "theme": variable.theme,
+            "themes": variable.themes,
             "products": [],
             "years": set(),
         }
@@ -133,7 +133,8 @@ def build_metrics(
     }
 
     for variable_info in variable_infos.values():
-        theme_infos[variable_info["theme"]]["variable_infos"].append(variable_info)
+        for theme in variable_info["themes"]:
+            theme_infos[theme]["variable_infos"].append(variable_info)
 
     for project_collection in root.get_children():
         global_info["projects"].append(project_collection)
@@ -257,6 +258,9 @@ def build_metrics__(
             for variable in theme_variables
         ]
         # groupby needs sorting first in order to work as expected
+
+
+        # TODO: variable.theme -> variable.themes
         for theme_name, theme_variables in groupby(
             sorted(variables, key=lambda v: v.theme),
             lambda v: slugify(v.theme)
