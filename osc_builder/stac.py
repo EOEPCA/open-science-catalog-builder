@@ -390,7 +390,8 @@ def build_catalog(
             collection.add_item(product_item)
         else:
             print(
-                f"{product_item.self_href}: Missing variable "
+                f"{product_item.get_self_href() or product_item.id}: "
+                "Missing variable "
                 f"{product_item.properties[VARIABLE_PROP]}"
             )
 
@@ -408,7 +409,8 @@ def build_catalog(
             )
         else:
             print(
-                f"{product_item.self_href}: Missing project "
+                f"{product_item.get_self_href() or product_item.id}: "
+                "Missing project "
                 f"{product_item.properties[PROJECT_PROP]}"
             )
 
