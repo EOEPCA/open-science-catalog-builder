@@ -3,7 +3,8 @@ import json
 import os
 import os.path
 import shutil
-from typing import TextIO
+from typing import TextIO, Optional
+from urllib.parse import urlparse
 
 import pystac
 import pystac.layout
@@ -206,7 +207,7 @@ def validate_catalog(data_dir: str):
 
 def set_update_timestamps(
     catalog: pystac.Catalog, stac_io: pystac.StacIO
-) -> datetime:
+) -> Optional[datetime]:
     """Updates the `updated` field in the catalog according to the underlying
     files last modification time and its included Items and children. This also
     updates the included STAC Items `updated` property respectively.
@@ -223,7 +224,7 @@ def set_update_timestamps(
         catalog (pystac.Catalog): the catalog to update the timestamp for
 
     Returns:
-        datetime: the resulting timestamp
+        Optional[datetime]: the resulting timestamp
     """
 
     io = None
@@ -232,21 +233,36 @@ def set_update_timestamps(
 
     href = catalog.get_self_href()
     path = io._replace_path(href) if io else href
+
+    if urlparse(path).scheme not in ("", "file"):
+        return None
+
     updated = datetime.fromtimestamp(os.path.getmtime(path), tz=timezone.utc)
 
-    for child in catalog.get_children():
-        updated = max(updated, set_update_timestamps(child, stac_io))
+    for child_link in catalog.get_child_links():
+        if urlparse(child_link.get_href()).scheme not in ("", "file"):
+            continue
+        child = child_link.resolve_stac_object().target
+        child_updated = set_update_timestamps(child, stac_io)
+        if child_updated:
+            updated = max(updated, child_updated)
 
     for item in catalog.get_items():
         href = item.get_self_href()
         path = io._replace_path(href) if io else href
+
+        if urlparse(path).scheme not in ("", "file"):
+            continue
+
         item_updated = datetime.fromtimestamp(
             os.path.getmtime(path), tz=timezone.utc
         )
         pystac.CommonMetadata(item).updated = item_updated
         updated = max(updated, item_updated)
 
-    pystac.CommonMetadata(catalog).updated = updated
+    if updated:
+        pystac.CommonMetadata(catalog).updated = updated
+
     return updated
 
 
@@ -280,7 +296,9 @@ def build_dist(
     with open(os.path.join(data_dir, assets["themes"].href)) as f:
         themes = [Theme(**theme) for theme in json.load(f)]
     with open(os.path.join(data_dir, assets["variables"].href)) as f:
-        variables = [Variable.from_raw(variable) for variable in json.load(f)]
+        variables = [
+            Variable.from_raw(**variable) for variable in json.load(f)
+        ]
     with open(os.path.join(data_dir, assets["eo-missions"].href)) as f:
         eo_missions = [EOMission(**eo_mission) for eo_mission in json.load(f)]
 
@@ -329,10 +347,10 @@ def build_dist(
 
     # ensure that all data items beneath a product reference the product
     # collection.
-    for project_collection in root.get_children():
-        for product_collection in project_collection.get_children():
-            for item in product_collection.get_all_items():
-                item.set_collection(product_collection)
+    # for project_collection in root.get_children():
+    #     for product_collection in project_collection.get_children():
+    #         for item in product_collection.get_all_items():
+    #             item.set_collection(product_collection)
 
     # create and store metrics for the root
     metrics = build_metrics(
@@ -368,5 +386,5 @@ def build_dist(
     # make_collection_assets_absolute(root)
 
     # final href adjustments
-    root.make_all_asset_hrefs_absolute()
+    # root.make_all_asset_hrefs_absolute()
     root.save(pystac.CatalogType.SELF_CONTAINED, dest_href=out_dir)
