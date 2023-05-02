@@ -1,10 +1,11 @@
 from datetime import datetime, timezone
 import json
+import mimetypes
 import os
 import os.path
 import shutil
 from typing import TextIO, Optional
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlencode, urlunparse
 
 import pystac
 import pystac.layout
@@ -33,6 +34,8 @@ from .stac import (
 from .types import Theme, Variable, EOMission
 
 
+mimetypes.add_type("image/webp", ".webp")
+
 # LAYOUT_STRATEGY = pystac.layout.TemplateLayoutStrategy(
 #     item_template="items/${id}/${id}.json",
 #     collection_template="collections/${id}/collection.json",
@@ -46,6 +49,7 @@ def convert_csvs(
     projects_file: TextIO,
     products_file: TextIO,
     out_dir: str,
+    catalog_url: Optional[str],
 ):
     variables = load_orig_variables(variables_file)
     themes = load_orig_themes(themes_file)
@@ -53,90 +57,164 @@ def convert_csvs(
     products = load_orig_products(products_file)
     eo_missions = load_orig_eo_missions(eo_missions_file)
 
-    root = pystac.Collection(
+    root = pystac.Catalog(
+        "osc",
         "Open Science Catalog",
-        "",
-        extent=pystac.Extent(
-            pystac.SpatialExtent([-180.0, -90.0, 180.0, 90.0]),
-            pystac.TemporalExtent([[None, None]]),
-        ),
     )
 
+    # set root structure
+    projects_catalog = pystac.Catalog(
+        "projects", "Open Scinenca Catalog projects"
+    )
+    root.add_child(projects_catalog)
+
+    products_catalog = pystac.Catalog(
+        "products", "Open Scinenca Catalog products"
+    )
+    root.add_child(products_catalog)
+
+    themes_catalog = pystac.Catalog("themes", "Open Scinenca Catalog themes")
+    root.add_child(themes_catalog)
+
+    variables_catalog = pystac.Catalog(
+        "variables", "Open Scinenca Catalog variables"
+    )
+    root.add_child(variables_catalog)
+
+    processes_catalog = pystac.Catalog(
+        "processes", "Open Scinenca Catalog processes"
+    )
+    root.add_child(processes_catalog)
+
+    eo_missions_catalog = pystac.Catalog(
+        "eo_missions", "Open Scinenca Catalog EO missions"
+    )
+    root.add_child(eo_missions_catalog)
+
+    # add projects
     project_map: dict[str, pystac.Collection] = {}
     for project in projects:
         collection = collection_from_project(project)
         project_map[collection.id] = collection
-        root.add_child(collection)
+        projects_catalog.add_child(collection)
 
+    # add products
     product_map: dict[str, pystac.Collection] = {}
-
     for product in products:
         collection = collection_from_product(product)
         product_map[collection.id] = collection
-        project_map[slugify(product.project)].add_child(collection)
+        products_catalog.add_child(collection)
 
-    os.makedirs(out_dir, exist_ok=True)
-    with open(os.path.join(out_dir, "themes.json"), "w") as f:
-        json.dump(
-            [
-                {
-                    "name": theme.name,
-                    "description": theme.description,
-                    "link": theme.link,
-                    "image": theme.image,
-                }
-                for theme in themes
-            ],
-            f,
-            indent=2,
+        # link projects/products
+        project_collection = project_map[slugify(product.project)]
+        collection.add_link(
+            pystac.Link(
+                rel="related",
+                target=project_collection,
+                media_type="application/json",
+                title="Project",
+            )
         )
-    with open(os.path.join(out_dir, "variables.json"), "w") as f:
-        json.dump(
-            [
-                {
-                    "name": variable.name,
-                    "description": variable.description,
-                    "link": variable.link,
-                    "themes": variable.themes,
-                }
-                for variable in variables
-            ],
-            f,
-            indent=2,
-        )
-    with open(os.path.join(out_dir, "eo-missions.json"), "w") as f:
-        json.dump(
-            [
-                {
-                    "name": eo_mission.name,
-                }
-                for eo_mission in eo_missions
-            ],
-            f,
-            indent=2,
+        project_collection.add_link(
+            pystac.Link(
+                rel="related",
+                target=collection,
+                media_type="application/json",
+                title="Product",
+            )
         )
 
-    # Add themes, variables and eo-missions JSON files as assets
-    root.add_asset(
-        "themes",
-        pystac.Asset("./themes.json", "Themes", "Themes", "application/json"),
-    )
-    root.add_asset(
-        "variables",
-        pystac.Asset(
-            "./variables.json", "Variables", "Variables", "application/json"
-        ),
-    )
-    root.add_asset(
-        "eo-missions",
-        pystac.Asset(
-            "./eo-missions.json",
-            "EO Missions",
-            "EO Missions",
-            "application/json",
-        ),
-    )
+    def make_search_url(filter_):
+        parsed = urlparse(catalog_url)
+        query = urlencode(
+            {
+                "filter": filter_,
+                "type": "catalog",
+                "f": "json",
+            }
+        )
+        return urlunparse(parsed._replace(path="search", query=query))
 
+    themes_map: dict[str, pystac.Catalog] = {}
+    for theme in themes:
+        catalog = pystac.Catalog(theme.name, theme.description)
+        themes_map[theme.name] = catalog
+        if theme.image:
+            catalog.add_link(
+                pystac.Link(
+                    rel="icon",
+                    target=theme.image,
+                    media_type=mimetypes.guess_type(theme.image)[0],
+                    title="Image",
+                )
+            )
+
+        catalog.add_links(
+            [
+                pystac.Link(
+                    rel=pystac.RelType.VIA,
+                    target=theme.link,
+                    media_type="text/html",
+                    title="Description",
+                ),
+                pystac.Link(
+                    rel="items",
+                    target=make_search_url(
+                        f"keywords LIKE '%theme:{theme.name}%'"
+                    ),
+                    media_type="application/json",
+                    title="Items",
+                ),
+            ]
+        )
+        themes_catalog.add_child(catalog)
+
+    for variable in variables:
+        catalog = pystac.Catalog(variable.name, variable.description)
+        catalog.add_links(
+            [
+                pystac.Link(
+                    rel=pystac.RelType.VIA,
+                    target=variable.link,
+                    media_type="text/html",
+                    title="Description",
+                ),
+                pystac.Link(
+                    rel="items",
+                    target=make_search_url(
+                        f"keywords LIKE '%variable:{variable.name}%'"
+                    ),
+                    media_type="application/json",
+                    title="Items",
+                ),
+            ]
+            + [
+                pystac.Link(
+                    rel="related",
+                    target=themes_map[theme_name],
+                    media_type="application/json",
+                    title="Theme",
+                )
+                for theme_name in variable.themes
+            ]
+        )
+        variables_catalog.add_child(catalog)
+
+    for eo_mission in eo_missions:
+        catalog = pystac.Catalog(eo_mission.name, eo_mission.name)
+        catalog.add_link(
+            pystac.Link(
+                rel="items",
+                target=make_search_url(
+                    f"keywords LIKE '%mission:{eo_mission.name}%'"
+                ),
+                media_type="application/json",
+                title="Items",
+            )
+        )
+        eo_missions_catalog.add_child(catalog)
+
+    # save
     root.normalize_hrefs(
         out_dir,
         # LAYOUT_STRATEGY,
@@ -296,9 +374,7 @@ def build_dist(
     with open(os.path.join(data_dir, assets["themes"].href)) as f:
         themes = [Theme(**theme) for theme in json.load(f)]
     with open(os.path.join(data_dir, assets["variables"].href)) as f:
-        variables = [
-            Variable.from_raw(**variable) for variable in json.load(f)
-        ]
+        variables = [Variable.from_raw(**variable) for variable in json.load(f)]
     with open(os.path.join(data_dir, assets["eo-missions"].href)) as f:
         eo_missions = [EOMission(**eo_mission) for eo_mission in json.load(f)]
 

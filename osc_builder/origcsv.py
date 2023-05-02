@@ -135,6 +135,7 @@ def load_orig_themes(file: TextIO) -> List[Theme]:
             name=line["theme"],
             description=line["description"],
             link=line["link"],
+            image=line.get("image"),
         )
         for line in csv.DictReader(file)
     ]

@@ -18,6 +18,7 @@ def cli(ctx):
 @click.argument("projects_file", type=click.File("r"))
 @click.argument("products_file", type=click.File("r"))
 @click.option("--out-dir", "-o", default="data", type=str)
+@click.option("--catalog-url", "-c", default="", type=str)
 def convert(
     variables_file: TextIO,
     themes_file: TextIO,
@@ -25,6 +26,7 @@ def convert(
     projects_file: TextIO,
     products_file: TextIO,
     out_dir: str,
+    catalog_url: str,
 ):
     convert_csvs(
         variables_file,
@@ -33,6 +35,7 @@ def convert(
         projects_file,
         products_file,
         out_dir,
+        catalog_url,
     )
 
 
