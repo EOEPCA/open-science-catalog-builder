@@ -9,6 +9,7 @@ from urllib.parse import urlparse, urlencode, urlunparse
 
 import pystac
 import pystac.layout
+import pystac.link
 import pystac.utils
 
 from slugify import slugify
@@ -35,6 +36,11 @@ from .types import Theme, Variable, EOMission
 
 
 mimetypes.add_type("image/webp", ".webp")
+
+# to fix https://github.com/stac-utils/pystac/issues/1112
+if "related" not in pystac.link.HIERARCHICAL_LINKS:
+    pystac.link.HIERARCHICAL_LINKS.append("related")
+
 
 # LAYOUT_STRATEGY = pystac.layout.TemplateLayoutStrategy(
 #     item_template="items/${id}/${id}.json",
@@ -64,65 +70,32 @@ def convert_csvs(
 
     # set root structure
     projects_catalog = pystac.Catalog(
-        "projects", "Open Scinenca Catalog projects"
+        "projects", "Open Science Catalog Projects"
     )
     root.add_child(projects_catalog)
 
     products_catalog = pystac.Catalog(
-        "products", "Open Scinenca Catalog products"
+        "products", "Open Science Catalog Products"
     )
     root.add_child(products_catalog)
 
-    themes_catalog = pystac.Catalog("themes", "Open Scinenca Catalog themes")
+    themes_catalog = pystac.Catalog("themes", "Open Science Catalog Themes")
     root.add_child(themes_catalog)
 
     variables_catalog = pystac.Catalog(
-        "variables", "Open Scinenca Catalog variables"
+        "variables", "Open Science Catalog Variables"
     )
     root.add_child(variables_catalog)
 
     processes_catalog = pystac.Catalog(
-        "processes", "Open Scinenca Catalog processes"
+        "processes", "Open Science Catalog Processes"
     )
     root.add_child(processes_catalog)
 
     eo_missions_catalog = pystac.Catalog(
-        "eo_missions", "Open Scinenca Catalog EO missions"
+        "eo-missions", "Open Science Catalog EO Missions"
     )
     root.add_child(eo_missions_catalog)
-
-    # add projects
-    project_map: dict[str, pystac.Collection] = {}
-    for project in projects:
-        collection = collection_from_project(project)
-        project_map[collection.id] = collection
-        projects_catalog.add_child(collection)
-
-    # add products
-    product_map: dict[str, pystac.Collection] = {}
-    for product in products:
-        collection = collection_from_product(product)
-        product_map[collection.id] = collection
-        products_catalog.add_child(collection)
-
-        # link projects/products
-        project_collection = project_map[slugify(product.project)]
-        collection.add_link(
-            pystac.Link(
-                rel="related",
-                target=project_collection,
-                media_type="application/json",
-                title="Project",
-            )
-        )
-        project_collection.add_link(
-            pystac.Link(
-                rel="related",
-                target=collection,
-                media_type="application/json",
-                title="Product",
-            )
-        )
 
     def make_search_url(filter_):
         parsed = urlparse(catalog_url)
@@ -142,7 +115,7 @@ def convert_csvs(
         if theme.image:
             catalog.add_link(
                 pystac.Link(
-                    rel="icon",
+                    rel="preview",
                     target=theme.image,
                     media_type=mimetypes.guess_type(theme.image)[0],
                     title="Image",
@@ -169,6 +142,7 @@ def convert_csvs(
         )
         themes_catalog.add_child(catalog)
 
+    variables_map: dict[str, pystac.Catalog] = {}
     for variable in variables:
         catalog = pystac.Catalog(variable.name, variable.description)
         catalog.add_links(
@@ -198,8 +172,13 @@ def convert_csvs(
                 for theme_name in variable.themes
             ]
         )
+
+        # breakpoint()
         variables_catalog.add_child(catalog)
 
+        variables_map[variable.name] = catalog
+
+    eo_missions_map: dict[str, pystac.Catalog] = {}
     for eo_mission in eo_missions:
         catalog = pystac.Catalog(eo_mission.name, eo_mission.name)
         catalog.add_link(
@@ -213,14 +192,99 @@ def convert_csvs(
             )
         )
         eo_missions_catalog.add_child(catalog)
+        eo_missions_map[eo_mission.name] = catalog
 
-    # save
-    root.normalize_hrefs(
-        out_dir,
-        # LAYOUT_STRATEGY,
-    )
+    # add projects
+    project_map: dict[str, pystac.Collection] = {}
+    for project in projects:
+        collection = collection_from_project(project)
+        project_map[collection.id] = collection
+        projects_catalog.add_child(collection)
 
-    root.save(pystac.CatalogType.SELF_CONTAINED, out_dir)
+        # add links to themes
+        collection.add_links([
+            pystac.Link(
+                rel="related",
+                target=themes_map[theme],
+                media_type="application/json",
+                title="Theme",
+            )
+            for theme in project.themes
+        ])
+
+    # add products
+    product_map: dict[str, pystac.Collection] = {}
+    for product in products:
+        collection = collection_from_product(product)
+        product_map[collection.id] = collection
+        products_catalog.add_child(collection)
+
+        # link projects/products
+        project_collection = project_map[slugify(product.project)]
+        collection.add_link(
+            pystac.Link(
+                rel="related",
+                target=project_collection,
+                media_type="application/json",
+                title="Project",
+            )
+        )
+        project_collection.add_link(
+            pystac.Link(
+                rel="related",
+                target=collection,
+                media_type="application/json",
+                title="Product",
+            )
+        )
+
+        # add links to themes
+        collection.add_links([
+            pystac.Link(
+                rel="related",
+                target=themes_map[theme],
+                media_type="application/json",
+                title="Theme",
+            )
+            for theme in product.themes
+        ])
+        collection.add_link(
+            pystac.Link(
+                rel="related",
+                target=variables_map[product.variable],
+                media_type="application/json",
+                title="Variable",
+            )
+        )
+        collection.add_links([
+            pystac.Link(
+                rel="related",
+                target=eo_missions_map[eo_mission],
+                media_type="application/json",
+                title="EO Mission",
+            )
+            for eo_mission in product.eo_missions
+        ])
+
+    # save catalog
+    root.normalize_and_save(out_dir, pystac.CatalogType.SELF_CONTAINED)
+
+    # TODO: move theme images if exist
+    if os.path.isdir("images"):
+        for catalog in themes_map.values():
+            link = catalog.get_single_link(rel="preview")
+            if link:
+                out_path = os.path.join(
+                    os.path.dirname(catalog.get_self_href()),
+                    link.href
+                )
+                shutil.copyfile(
+                    os.path.join("images", link.href),
+                    out_path,
+                )
+
+
+    # root.save(pystac.CatalogType.SELF_CONTAINED, out_dir)
 
 
 def validate_project(
