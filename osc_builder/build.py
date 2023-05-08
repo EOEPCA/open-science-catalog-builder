@@ -239,32 +239,37 @@ def convert_csvs(
         )
 
         # add links to themes
-        collection.add_links([
-            pystac.Link(
-                rel="related",
-                target=themes_map[theme],
-                media_type="application/json",
-                title="Theme",
+        for theme in product.themes:
+            if theme in themes_map:
+                collection.add_link(
+                    pystac.Link(
+                        rel="related",
+                        target=themes_map[theme],
+                        media_type="application/json",
+                        title="Theme",
+                    )
+                )
+        
+        if product.variable in variables_map:
+            collection.add_link(
+                pystac.Link(
+                    rel="related",
+                    target=variables_map[product.variable],
+                    media_type="application/json",
+                    title="Variable",
+                )
             )
-            for theme in product.themes
-        ])
-        collection.add_link(
-            pystac.Link(
-                rel="related",
-                target=variables_map[product.variable],
-                media_type="application/json",
-                title="Variable",
-            )
-        )
-        collection.add_links([
-            pystac.Link(
-                rel="related",
-                target=eo_missions_map[eo_mission],
-                media_type="application/json",
-                title="EO Mission",
-            )
-            for eo_mission in product.eo_missions
-        ])
+
+        for eo_mission in product.eo_missions:
+            if eo_mission in eo_missions_map:
+                collection.add_link(
+                    pystac.Link(
+                        rel="related",
+                        target=eo_missions_map[eo_mission],
+                        media_type="application/json",
+                        title="EO Mission",
+                    )
+                )
 
     # save catalog
     root.normalize_and_save(out_dir, pystac.CatalogType.SELF_CONTAINED)

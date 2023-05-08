@@ -16,13 +16,13 @@ class Status(Enum):
 class Product:
     id: str
     status: Status
-    website: str
     title: str
     description: str
     project: str
     variable: str
     themes: List[str]
     access: str
+    website: Optional[str] = None
     documentation: Optional[str] = None
     doi: Optional[str] = None
     version: Optional[str] = None

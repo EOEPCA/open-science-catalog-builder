@@ -28,14 +28,14 @@ def parse_geometry(source: str) -> geometry._Geometry:
     else:
         try:
             raw_geom = json.loads(source)
+            depth = get_depth(raw_geom)
+            if depth == 1:
+                geom = geometry.Point(*raw_geom)
+            elif depth == 3:
+                shell, *holes = raw_geom
+                geom = geometry.Polygon(shell, holes or None)
         except ValueError:
             pass
-        depth = get_depth(raw_geom)
-        if depth == 1:
-            geom = geometry.Point(*raw_geom)
-        elif depth == 3:
-            shell, *holes = raw_geom
-            geom = geometry.Polygon(shell, holes or None)
 
     return geom
 
