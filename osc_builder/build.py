@@ -121,24 +121,13 @@ def convert_csvs(
                     title="Image",
                 )
             )
-
-        catalog.add_links(
-            [
-                pystac.Link(
-                    rel=pystac.RelType.VIA,
-                    target=theme.link,
-                    media_type="text/html",
-                    title="Description",
-                ),
-                pystac.Link(
-                    rel="items",
-                    target=make_search_url(
-                        f"keywords LIKE '%theme:{theme.name}%'"
-                    ),
-                    media_type="application/json",
-                    title="Items",
-                ),
-            ]
+        catalog.add_link(
+            pystac.Link(
+                rel=pystac.RelType.VIA,
+                target=theme.link,
+                media_type="text/html",
+                title="Description",
+            )
         )
         themes_catalog.add_child(catalog)
 
@@ -152,14 +141,6 @@ def convert_csvs(
                     target=variable.link,
                     media_type="text/html",
                     title="Description",
-                ),
-                pystac.Link(
-                    rel="items",
-                    target=make_search_url(
-                        f"keywords LIKE '%variable:{variable.name}%'"
-                    ),
-                    media_type="application/json",
-                    title="Items",
                 ),
             ]
             + [
@@ -181,16 +162,6 @@ def convert_csvs(
     eo_missions_map: dict[str, pystac.Catalog] = {}
     for eo_mission in eo_missions:
         catalog = pystac.Catalog(eo_mission.name, eo_mission.name)
-        catalog.add_link(
-            pystac.Link(
-                rel="items",
-                target=make_search_url(
-                    f"keywords LIKE '%mission:{eo_mission.name}%'"
-                ),
-                media_type="application/json",
-                title="Items",
-            )
-        )
         eo_missions_catalog.add_child(catalog)
         eo_missions_map[eo_mission.name] = catalog
 
@@ -241,35 +212,41 @@ def convert_csvs(
         # add links to themes
         for theme in product.themes:
             if theme in themes_map:
+                other = themes_map[theme]
                 collection.add_link(
                     pystac.Link(
                         rel="related",
-                        target=themes_map[theme],
+                        target=other,
                         media_type="application/json",
                         title="Theme",
                     )
                 )
+                other.add_child(collection)
         
         if product.variable in variables_map:
+            variable = variables_map[product.variable]
             collection.add_link(
                 pystac.Link(
                     rel="related",
-                    target=variables_map[product.variable],
+                    target=variable,
                     media_type="application/json",
                     title="Variable",
                 )
             )
+            variable.add_child(collection)
 
         for eo_mission in product.eo_missions:
             if eo_mission in eo_missions_map:
+                other = eo_missions_map[eo_mission]
                 collection.add_link(
                     pystac.Link(
                         rel="related",
-                        target=eo_missions_map[eo_mission],
+                        target=other,
                         media_type="application/json",
                         title="EO Mission",
                     )
                 )
+                other.add_child(collection)
 
     # save catalog
     root.normalize_and_save(out_dir, pystac.CatalogType.SELF_CONTAINED)
