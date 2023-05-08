@@ -65,35 +65,50 @@ def convert_csvs(
 
     root = pystac.Catalog(
         "osc",
-        "Open Science Catalog",
+        "A catalog of publicly available geoscience products, datasets and resources developed in the frame of scientific research Projects funded by ESA EO (Earth Observation)",
+        "Open Science Catalog"
     )
 
     # set root structure
     projects_catalog = pystac.Catalog(
-        "projects", "Open Science Catalog Projects"
+        "projects",
+        "Activities funded by ESA",
+        "Projects"
     )
     root.add_child(projects_catalog)
 
     products_catalog = pystac.Catalog(
-        "products", "Open Science Catalog Products"
+        "products",
+        "Geoscience products representing the measured or inferred values of one or more variables over a given time range and spatial area",
+        "Products"
     )
     root.add_child(products_catalog)
 
-    themes_catalog = pystac.Catalog("themes", "Open Science Catalog Themes")
+    themes_catalog = pystac.Catalog(
+        "themes",
+        "Earth Science topics linked to the grand science challenges set in the ESA strategy",
+        "Themes"
+    )
     root.add_child(themes_catalog)
 
     variables_catalog = pystac.Catalog(
-        "variables", "Open Science Catalog Variables"
+        "variables",
+        "Geoscience, climate and environmental variables",
+        "Variables"
     )
     root.add_child(variables_catalog)
 
     processes_catalog = pystac.Catalog(
-        "processes", "Open Science Catalog Processes"
+        "processes",
+        "Processes for reproducible science",
+        "Processes"
     )
     root.add_child(processes_catalog)
 
     eo_missions_catalog = pystac.Catalog(
-        "eo-missions", "Open Science Catalog EO Missions"
+        "eo-missions",
+        "Earth Obeservation Satellite Missions by ESA",
+        "EO Missions"
     )
     root.add_child(eo_missions_catalog)
 
