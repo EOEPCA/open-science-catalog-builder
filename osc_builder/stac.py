@@ -226,8 +226,7 @@ def collection_from_project(project: Project) -> pystac.Item:
         slugify(project.name),
         project.description,
         extent=pystac.Extent(
-            # pystac.SpatialExtent([-180.0, -90.0, 180.0, 90.0]),
-            pystac.SpatialExtent([[]]),
+            pystac.SpatialExtent([-180.0, -90.0, 180.0, 90.0]), # todo: ESA should provide this
             pystac.TemporalExtent([[project.start, project.end]]),
         ),
         title=project.title,
