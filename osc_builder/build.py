@@ -5,7 +5,7 @@ import os
 import os.path
 import shutil
 from typing import TextIO, Optional
-from urllib.parse import urlparse, urlencode, urlunparse
+from urllib.parse import urlparse
 
 import pystac
 import pystac.layout
@@ -63,61 +63,54 @@ def convert_csvs(
     products = load_orig_products(products_file)
     eo_missions = load_orig_eo_missions(eo_missions_file)
 
+    # set root structure
     root = pystac.Catalog(
         "osc",
         "A catalog of publicly available geoscience products, datasets and resources developed in the frame of scientific research Projects funded by ESA EO (Earth Observation)",
-        "Open Science Catalog"
+        "Open Science Catalog",
     )
-
-    # set root structure
     projects_catalog = pystac.Catalog(
-        "projects",
-        "Activities funded by ESA",
-        "Projects"
+        "projects", "Activities funded by ESA", "Projects"
     )
-    root.add_child(projects_catalog)
-
     products_catalog = pystac.Catalog(
         "products",
         "Geoscience products representing the measured or inferred values of one or more variables over a given time range and spatial area",
-        "Products"
+        "Products",
     )
-    root.add_child(products_catalog)
-
     themes_catalog = pystac.Catalog(
         "themes",
         "Earth Science topics linked to the grand science challenges set in the ESA strategy",
-        "Themes"
+        "Themes",
     )
-    root.add_child(themes_catalog)
-
     variables_catalog = pystac.Catalog(
         "variables",
         "Geoscience, climate and environmental variables",
-        "Variables"
+        "Variables",
     )
-    root.add_child(variables_catalog)
-
     processes_catalog = pystac.Catalog(
-        "processes",
-        "Processes for reproducible science",
-        "Processes"
+        "processes", "Processes for reproducible science", "Processes"
     )
-    root.add_child(processes_catalog)
-
     eo_missions_catalog = pystac.Catalog(
         "eo-missions",
         "Earth Obeservation Satellite Missions by ESA",
-        "EO Missions"
+        "EO Missions",
     )
+
+    # add the first level catalogs
+    # IMPORTANT: the order is important here, to ensure that the products
+    # end up beneath their collection
+    # see https://github.com/stac-utils/pystac/issues/1116
+    root.add_child(projects_catalog)
+    root.add_child(themes_catalog)
+    root.add_child(variables_catalog)
+    root.add_child(processes_catalog)
     root.add_child(eo_missions_catalog)
+    root.add_child(products_catalog)
 
     themes_map: dict[str, pystac.Catalog] = {}
     for theme in themes:
         catalog = pystac.Catalog(
-            id=theme.name,
-            description=theme.description,
-            title=theme.name
+            id=theme.name, description=theme.description, title=theme.name
         )
         themes_map[theme.name] = catalog
         if theme.image:
@@ -129,8 +122,8 @@ def convert_csvs(
                     title="Image",
                     extra_fields={
                         "proj:epsg": None,
-                        "proj:shape": [1080,1920]
-                    }
+                        "proj:shape": [1080, 1920],
+                    },
                 )
             )
         catalog.add_link(
@@ -148,7 +141,7 @@ def convert_csvs(
         catalog = pystac.Catalog(
             id=variable.name,
             description=variable.description,
-            title=variable.name
+            title=variable.name,
         )
         catalog.add_links(
             [
@@ -164,13 +157,11 @@ def convert_csvs(
                     rel="related",
                     target=themes_map[theme_name],
                     media_type="application/json",
-                    title="Theme: " + theme_name,
+                    title=f"Theme: {themes_map[theme_name].title}",
                 )
                 for theme_name in variable.themes
             ]
         )
-
-        # breakpoint()
         variables_catalog.add_child(catalog)
 
         variables_map[variable.name] = catalog
@@ -180,7 +171,7 @@ def convert_csvs(
         catalog = pystac.Catalog(
             id=eo_mission.name,
             description=eo_mission.name,
-            title=eo_mission.name
+            title=eo_mission.name,
         )
         eo_missions_catalog.add_child(catalog)
         eo_missions_map[eo_mission.name] = catalog
@@ -190,18 +181,21 @@ def convert_csvs(
     for project in projects:
         collection = collection_from_project(project)
         project_map[collection.id] = collection
-        projects_catalog.add_child(collection)
 
         # add links to themes
-        collection.add_links([
-            pystac.Link(
-                rel="related",
-                target=themes_map[theme],
-                media_type="application/json",
-                title="Theme: " + themes_map[theme].title,
-            )
-            for theme in project.themes
-        ])
+        collection.add_links(
+            [
+                pystac.Link(
+                    rel="related",
+                    target=themes_map[theme],
+                    media_type="application/json",
+                    title=f"Theme: {themes_map[theme].title}",
+                )
+                for theme in project.themes
+            ]
+        )
+
+        projects_catalog.add_child(collection)
 
     # add products
     product_map: dict[str, pystac.Collection] = {}
@@ -217,7 +211,7 @@ def convert_csvs(
                 rel="related",
                 target=project_collection,
                 media_type="application/json",
-                title="Project: " + project_collection.title,
+                title=f"Project: {project_collection.title}",
             )
         )
         project_collection.add_link(
@@ -225,48 +219,45 @@ def convert_csvs(
                 rel="related",
                 target=collection,
                 media_type="application/json",
-                title="Product: " + collection.title,
+                title=f"Product: {collection.title}",
             )
         )
 
         # add links to themes
         for theme in product.themes:
-            if theme in themes_map:
-                other = themes_map[theme]
-                collection.add_link(
-                    pystac.Link(
-                        rel="related",
-                        target=other,
-                        media_type="application/json",
-                        title="Theme: " + other.title,
-                    )
-                )
-                other.add_child(collection)
-        
-        if product.variable in variables_map:
-            variable = variables_map[product.variable]
+            theme_catalog = themes_map[theme]
             collection.add_link(
                 pystac.Link(
                     rel="related",
-                    target=variable,
+                    target=theme_catalog,
                     media_type="application/json",
-                    title="Variable: " + variable.title,
+                    title=f"Theme: {theme_catalog.title}",
                 )
             )
-            variable.add_child(collection)
+            theme_catalog.add_child(collection)
+
+        variable_catalog = variables_map[product.variable]
+        collection.add_link(
+            pystac.Link(
+                rel="related",
+                target=variable_catalog,
+                media_type="application/json",
+                title=f"Variable: {variable_catalog.title}",
+            )
+        )
+        variable_catalog.add_child(collection)
 
         for eo_mission in product.eo_missions:
-            if eo_mission in eo_missions_map:
-                other = eo_missions_map[eo_mission]
-                collection.add_link(
-                    pystac.Link(
-                        rel="related",
-                        target=other,
-                        media_type="application/json",
-                        title="EO Mission: " + other.title,
-                    )
+            eo_mission_catalog = eo_missions_map[eo_mission]
+            collection.add_link(
+                pystac.Link(
+                    rel="related",
+                    target=eo_mission_catalog,
+                    media_type="application/json",
+                    title=f"EO Mission: {eo_mission_catalog.title}",
                 )
-                other.add_child(collection)
+            )
+            eo_mission_catalog.add_child(collection)
 
     # save catalog
     root.normalize_and_save(out_dir, pystac.CatalogType.SELF_CONTAINED)
@@ -277,16 +268,12 @@ def convert_csvs(
             link = catalog.get_single_link(rel="preview")
             if link:
                 out_path = os.path.join(
-                    os.path.dirname(catalog.get_self_href()),
-                    link.href
+                    os.path.dirname(catalog.get_self_href()), link.href
                 )
                 shutil.copyfile(
                     os.path.join("images", link.href),
                     out_path,
                 )
-
-
-    # root.save(pystac.CatalogType.SELF_CONTAINED, out_dir)
 
 
 def validate_project(
