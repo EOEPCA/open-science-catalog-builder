@@ -112,20 +112,13 @@ def convert_csvs(
     )
     root.add_child(eo_missions_catalog)
 
-    def make_search_url(filter_):
-        parsed = urlparse(catalog_url)
-        query = urlencode(
-            {
-                "filter": filter_,
-                "type": "catalog",
-                "f": "json",
-            }
-        )
-        return urlunparse(parsed._replace(path="search", query=query))
-
     themes_map: dict[str, pystac.Catalog] = {}
     for theme in themes:
-        catalog = pystac.Catalog(theme.name, theme.description)
+        catalog = pystac.Catalog(
+            id=theme.name,
+            description=theme.description,
+            title=theme.name
+        )
         themes_map[theme.name] = catalog
         if theme.image:
             catalog.add_link(
@@ -134,6 +127,10 @@ def convert_csvs(
                     target=theme.image,
                     media_type=mimetypes.guess_type(theme.image)[0],
                     title="Image",
+                    extra_fields={
+                        "proj:epsg": None,
+                        "proj:shape": [1080,1920]
+                    }
                 )
             )
         catalog.add_link(
@@ -148,7 +145,11 @@ def convert_csvs(
 
     variables_map: dict[str, pystac.Catalog] = {}
     for variable in variables:
-        catalog = pystac.Catalog(variable.name, variable.description)
+        catalog = pystac.Catalog(
+            id=variable.name,
+            description=variable.description,
+            title=variable.name
+        )
         catalog.add_links(
             [
                 pystac.Link(
@@ -163,7 +164,7 @@ def convert_csvs(
                     rel="related",
                     target=themes_map[theme_name],
                     media_type="application/json",
-                    title="Theme",
+                    title="Theme: " + theme_name,
                 )
                 for theme_name in variable.themes
             ]
@@ -176,7 +177,11 @@ def convert_csvs(
 
     eo_missions_map: dict[str, pystac.Catalog] = {}
     for eo_mission in eo_missions:
-        catalog = pystac.Catalog(eo_mission.name, eo_mission.name)
+        catalog = pystac.Catalog(
+            id=eo_mission.name,
+            description=eo_mission.name,
+            title=eo_mission.name
+        )
         eo_missions_catalog.add_child(catalog)
         eo_missions_map[eo_mission.name] = catalog
 
@@ -193,7 +198,7 @@ def convert_csvs(
                 rel="related",
                 target=themes_map[theme],
                 media_type="application/json",
-                title="Theme",
+                title="Theme: " + themes_map[theme].title,
             )
             for theme in project.themes
         ])
@@ -212,7 +217,7 @@ def convert_csvs(
                 rel="related",
                 target=project_collection,
                 media_type="application/json",
-                title="Project",
+                title="Project: " + project_collection.title,
             )
         )
         project_collection.add_link(
@@ -220,7 +225,7 @@ def convert_csvs(
                 rel="related",
                 target=collection,
                 media_type="application/json",
-                title="Product",
+                title="Product: " + collection.title,
             )
         )
 
@@ -233,7 +238,7 @@ def convert_csvs(
                         rel="related",
                         target=other,
                         media_type="application/json",
-                        title="Theme",
+                        title="Theme: " + other.title,
                     )
                 )
                 other.add_child(collection)
@@ -245,7 +250,7 @@ def convert_csvs(
                     rel="related",
                     target=variable,
                     media_type="application/json",
-                    title="Variable",
+                    title="Variable: " + variable.title,
                 )
             )
             variable.add_child(collection)
@@ -258,7 +263,7 @@ def convert_csvs(
                         rel="related",
                         target=other,
                         media_type="application/json",
-                        title="EO Mission",
+                        title="EO Mission: " + other.title,
                     )
                 )
                 other.add_child(collection)
