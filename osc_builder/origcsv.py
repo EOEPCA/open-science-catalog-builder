@@ -28,14 +28,14 @@ def parse_geometry(source: str) -> geometry._Geometry:
     else:
         try:
             raw_geom = json.loads(source)
+            depth = get_depth(raw_geom)
+            if depth == 1:
+                geom = geometry.Point(*raw_geom)
+            elif depth == 3:
+                shell, *holes = raw_geom
+                geom = geometry.Polygon(shell, holes or None)
         except ValueError:
             pass
-        depth = get_depth(raw_geom)
-        if depth == 1:
-            geom = geometry.Point(*raw_geom)
-        elif depth == 3:
-            shell, *holes = raw_geom
-            geom = geometry.Polygon(shell, holes or None)
 
     return geom
 
@@ -55,11 +55,11 @@ def load_orig_products(file: TextIO) -> List[Product]:
         Product(
             id=line["Short_Name"],
             status=Status(line["Status"].upper()),
-            website=line["Website"],
+            website=line.get("Website"),
             title=line["Product"],
             description=line["Description"],
             project=line["Project"],
-            variable=line["Variable"],
+            variables=[line["Variable"]],
             themes=get_themes(line),
             access=line["Access"],
             documentation=line["Documentation"] or None,

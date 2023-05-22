@@ -1,7 +1,6 @@
 from datetime import date, datetime, time, timezone
-import os
 from os.path import join
-from typing import Generic, TypeVar, Union, cast
+from typing import Generic, TypeVar, Union, cast, List
 from urllib.parse import urlparse
 
 from slugify import slugify
@@ -27,13 +26,10 @@ PREFIX: str = "osc:"
 TYPE_PROP = f"{PREFIX}type"
 PROJECT_PROP = f"{PREFIX}project"
 NAME_PROP = f"{PREFIX}name"
-THEME_PROP = f"{PREFIX}theme"
 THEMES_PROP = f"{PREFIX}themes"
-VARIABLE_PROP = f"{PREFIX}variable"
+VARIABLES_PROP = f"{PREFIX}variables"
 STATUS_PROP = f"{PREFIX}status"
 REGION_PROP = f"{PREFIX}region"
-CONSORTIUM_PROP = f"{PREFIX}consortium"
-TECHNICAL_OFFICER_PROP = f"{PREFIX}technical_officer"
 MISSIONS_PROP = f"{PREFIX}missions"
 
 
@@ -88,13 +84,13 @@ class CollectionOSCExtension(OSCExtension[pystac.Collection]):
                 "description": product.description,
                 MISSIONS_PROP: product.eo_missions,
                 PROJECT_PROP: product.project,
-                THEMES_PROP: product.themes,
-                VARIABLE_PROP: product.variable,
-                STATUS_PROP: product.status.value,
+                VARIABLES_PROP: product.variables,
+                STATUS_PROP: product.status.value.lower(),
                 REGION_PROP: product.region,
-                TYPE_PROP: "Product",
+                TYPE_PROP: "product",
             }
         )
+        self.add_themes(product.themes)
 
         common = pystac.CommonMetadata(self.collection)
 
@@ -136,7 +132,10 @@ class CollectionOSCExtension(OSCExtension[pystac.Collection]):
 
         self.collection.keywords = [
             f"theme:{theme}" for theme in product.themes
-        ] + [f"variable:{product.variable}", f"region:{product.region}"]
+        ] + [
+            f"variable:{variable}"
+            for variable in product.variables
+        ] + [f"region:{product.region}"]
 
     def apply_project(self, project: Project):
         self.properties.update(
@@ -144,16 +143,26 @@ class CollectionOSCExtension(OSCExtension[pystac.Collection]):
                 "title": project.title,
                 "description": project.description,
                 NAME_PROP: project.name,
-                THEMES_PROP: project.themes,
-                STATUS_PROP: project.status.value,
-                TECHNICAL_OFFICER_PROP: {
-                    "name": project.technical_officer.name,
-                    "e-mail": project.technical_officer.e_mail,
-                },
-                CONSORTIUM_PROP: project.consortium,
-                TYPE_PROP: "Project",
+                STATUS_PROP: project.status.value.lower(),
+                TYPE_PROP: "project",
+                "contacts": [
+                    {
+                        "name": project.technical_officer.name,
+                        "role": "technical_officer",
+                        "emails": [{
+                            "value": project.technical_officer.e_mail,
+                        }]
+                    }
+                ] + [
+                    {
+                        "name": consortium_member,
+                        "role": "consortium_member",
+                    }
+                    for consortium_member in project.consortium
+                ]
             }
         )
+        self.add_themes(project.themes)
 
         common = pystac.CommonMetadata(self.collection)
         if project.start:
@@ -181,6 +190,22 @@ class CollectionOSCExtension(OSCExtension[pystac.Collection]):
         self.collection.keywords = [
             f"theme:{theme}" for theme in project.themes
         ]
+
+    def add_themes(self, themes: List[str]):
+        self.properties.update({
+            "themes": [
+                # STAC themes for OSC themes
+                {
+                    "scheme": "OSC:SCHEME:THEMES",
+                    "concepts": [
+                        {
+                            "id": theme
+                        }
+                        for theme in themes
+                    ]
+                }
+            ]
+        })
 
 
 class ItemOSCExtension(OSCExtension[pystac.Item]):
@@ -226,7 +251,7 @@ def collection_from_project(project: Project) -> pystac.Item:
         slugify(project.name),
         project.description,
         extent=pystac.Extent(
-            pystac.SpatialExtent([-180.0, -90.0, 180.0, 90.0]), # todo: ESA should provide this
+            pystac.SpatialExtent([-180.0, -90.0, 180.0, 90.0]),  # todo: ESA should provide this
             pystac.TemporalExtent([[project.start, project.end]]),
         ),
         title=project.title,

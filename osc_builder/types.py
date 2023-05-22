@@ -20,7 +20,7 @@ class Product:
     title: str
     description: str
     project: str
-    variable: str
+    variables: List[str]
     themes: List[str]
     access: str
     documentation: Optional[str] = None
