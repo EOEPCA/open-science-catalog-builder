@@ -2,7 +2,7 @@ from typing import TextIO
 
 import click
 
-from .build import convert_csvs, validate_catalog, build_dist
+from .build import convert_csvs, validate_catalog, build_dist, build_metrics
 
 
 @click.group()
@@ -67,6 +67,22 @@ def build(
         add_iso,
         pretty_print,
         update_timestamps,
+    )
+
+
+@cli.command()
+@click.argument("data_dir", type=str)
+@click.option("--out", "-o", default="metrics.json", type=str)
+@click.option("--add-to-root/--dont-add-to-root", default=True)
+def metrics(
+    data_dir: str,
+    out: str,
+    add_to_root: bool,
+):
+    build_metrics(
+        data_dir,
+        out,
+        add_to_root,
     )
 
 
