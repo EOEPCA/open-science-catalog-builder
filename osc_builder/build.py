@@ -334,7 +334,7 @@ def link_collections(
                 title=f"Project: {project_collection.title}",
             )
         )
-        project_collection.add_child(product_collection)
+        project_collection.add_child(product_collection, keep_parent=True)
 
         # product -> themes
         for theme_name in get_theme_names(product_collection):
@@ -347,7 +347,7 @@ def link_collections(
                     title=f"Theme: {theme_catalog.title}",
                 )
             )
-            theme_catalog.add_child(product_collection)
+            theme_catalog.add_child(product_collection, keep_parent=True)
 
         # product -> variables
         for variable_name in product_collection.extra_fields[VARIABLES_PROP]:
@@ -360,7 +360,7 @@ def link_collections(
                     title=f"Variable: {variable_catalog.title}",
                 )
             )
-            variable_catalog.add_child(product_collection)
+            variable_catalog.add_child(product_collection, keep_parent=True)
 
         # product -> eo mission
         for eo_mission in product_collection.extra_fields[MISSIONS_PROP]:
@@ -373,7 +373,7 @@ def link_collections(
                     title=f"EO Mission: {eo_mission_catalog.title}",
                 )
             )
-            eo_mission_catalog.add_child(product_collection)
+            eo_mission_catalog.add_child(product_collection, keep_parent=True)
 
 
 # TODO: apply keywords
@@ -499,6 +499,7 @@ def build_dist(
 
     # final href adjustments
     # root.make_all_asset_hrefs_absolute()
+    # root.normalize_and_save(out_dir, pystac.CatalogType.SELF_CONTAINED)
     root.save(pystac.CatalogType.SELF_CONTAINED, dest_href=out_dir)
 
 
