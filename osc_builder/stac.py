@@ -43,7 +43,9 @@ STATUS_PROP = f"{PREFIX}status"
 REGION_PROP = f"{PREFIX}region"
 MISSIONS_PROP = f"{PREFIX}missions"
 
-OSC_THEMES_SCHEME = "OSC:SCHEME:THEMES"
+OSC_SCHEME_THEMES = "https://github.com/stac-extensions/osc#theme"
+OSC_SCHEME_VARIABLES = "https://github.com/stac-extensions/osc#variable"
+OSC_SCHEME_MISSIONS = "https://github.com/stac-extensions/osc#eo-mission"
 
 
 class OSCExtension(
@@ -103,7 +105,9 @@ class CollectionOSCExtension(OSCExtension[pystac.Collection]):
                 TYPE_PROP: "product",
             }
         )
-        add_themes(self.collection, product.themes)
+        add_theme_themes(self.collection, product.themes)
+        add_theme_variables(self.collection, product.variables)
+        add_theme_missions(self.collection, product.eo_missions)
 
         common = pystac.CommonMetadata(self.collection)
 
@@ -143,12 +147,6 @@ class CollectionOSCExtension(OSCExtension[pystac.Collection]):
                 )
             )
 
-        self.collection.keywords = (
-            [f"theme:{theme}" for theme in product.themes]
-            + [f"variable:{variable}" for variable in product.variables]
-            + [f"region:{product.region}"]
-        )
-
     def apply_project(self, project: Project):
         self.properties.update(
             {
@@ -177,7 +175,7 @@ class CollectionOSCExtension(OSCExtension[pystac.Collection]):
                 ],
             }
         )
-        add_themes(self.collection, project.themes)
+        add_theme_themes(self.collection, project.themes)
         self.collection.stac_extensions.append(CONTACTS_SCHEMA_URI)
 
         common = pystac.CommonMetadata(self.collection)
@@ -203,29 +201,42 @@ class CollectionOSCExtension(OSCExtension[pystac.Collection]):
                 )
             )
 
-        self.collection.keywords = [
-            f"theme:{theme}" for theme in project.themes
-        ]
-
 
 class ItemOSCExtension(OSCExtension[pystac.Item]):
     pass
 
 
-def add_themes(catalog: pystac.Catalog, themes: List[str]):
-    catalog.extra_fields.update(
-        {
-            "themes": [
-                # STAC themes for OSC themes
-                {
-                    "scheme": OSC_THEMES_SCHEME,
-                    "concepts": [{"id": theme} for theme in themes],
-                }
-            ]
-        }
-    )
+def add_themes(catalog: pystac.Catalog, themes: List[str], scheme: str):
+    themes_prop: list = catalog.extra_fields.setdefault("themes", [])
+    for theme_prop in themes_prop:
+        if theme_prop.get("scheme") == scheme:
+            to_add = set(themes) - {
+                concept["id"] for concept in theme_prop["concepts"]
+            }
+            theme_prop["concepts"].extend({
+                "id": theme
+            } for theme in to_add)
+            break
+    else:
+        themes_prop.append({
+            "scheme": scheme,
+            "concepts": [{"id": theme} for theme in themes]
+        })
+
     if THEMES_SCHEMA_URI not in catalog.stac_extensions:
         catalog.stac_extensions.append(THEMES_SCHEMA_URI)
+
+
+def add_theme_themes(catalog: pystac.Catalog, themes: List[str]):
+    add_themes(catalog, themes, OSC_SCHEME_THEMES)
+
+
+def add_theme_variables(catalog: pystac.Catalog, variables: List[str]):
+    add_themes(catalog, variables, OSC_SCHEME_VARIABLES)
+
+
+def add_theme_missions(catalog: pystac.Catalog, missions: List[str]):
+    add_themes(catalog, missions, OSC_SCHEME_MISSIONS)
 
 
 def collection_from_product(product: Product) -> pystac.Collection:
@@ -316,7 +327,7 @@ def catalog_from_variable(variable: Variable) -> pystac.Catalog:
         description=variable.description,
         title=variable.name,
     )
-    add_themes(catalog, variable.themes)
+    add_theme_themes(catalog, variable.themes)
     catalog.add_link(
         pystac.Link(
             rel=pystac.RelType.VIA,
@@ -351,10 +362,40 @@ def get_eo_mission_id(eo_mission_name: str):
     return f"{slugify(eo_mission_name)}"
 
 
-def get_theme_names(catalog: pystac.Catalog) -> Iterable[str]:
+def get_concept_names(catalog: pystac.Catalog, scheme: str):
     for theme in catalog.extra_fields.get("themes", []):
-        if theme.get("scheme") == OSC_THEMES_SCHEME:
+        if theme.get("scheme") == scheme:
             return [concept["id"] for concept in theme.get("concepts", [])]
+    return []
+
+
+def get_theme_names(catalog: pystac.Catalog) -> Iterable[str]:
+    return get_concept_names(catalog, OSC_SCHEME_THEMES)
+
+
+def get_variable_names(catalog: pystac.Catalog) -> Iterable[str]:
+    return get_concept_names(catalog, OSC_SCHEME_VARIABLES)
+
+
+def get_mission_names(catalog: pystac.Catalog) -> Iterable[str]:
+    return get_concept_names(catalog, OSC_SCHEME_MISSIONS)
+
+
+def apply_keywords(catalog: Union[pystac.Catalog, pystac.Collection]):
+    if isinstance(catalog, pystac.Collection):
+        keywords = catalog.keywords or []
+    else:
+        keywords: List[str] = catalog.extra_fields.setdefault("keywords", [])
+    keywords.extend(f"theme:{name}" for name in get_theme_names(catalog))
+    keywords.extend(f"variable:{name}" for name in get_variable_names(catalog))
+    keywords.extend(f"mission:{name}" for name in get_mission_names(catalog))
+    if region := catalog.extra_fields.get(REGION_PROP):
+        keywords.append(f"region:{region}")
+    if project := catalog.extra_fields.get(PROJECT_PROP):
+        keywords.append(f"proect:{project}")
+
+    if isinstance(catalog, pystac.Collection):
+        catalog.keywords = keywords
 
 
 class FakeHTTPStacIO(pystac.stac_io.DefaultStacIO):
@@ -369,7 +410,7 @@ class FakeHTTPStacIO(pystac.stac_io.DefaultStacIO):
     def _replace_path(self, href: str) -> str:
         path = urlparse(href).path
         if path.startswith(self.path_prefix):
-            path = path[len(self.path_prefix) :]
+            path = path[len(self.path_prefix):]
 
         return join(self.out_dir, path)
 

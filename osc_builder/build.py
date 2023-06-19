@@ -28,7 +28,6 @@ from .stac import (
     MISSIONS_PROP,
     VARIABLES_PROP,
     THEMES_PROP,
-    OSC_THEMES_SCHEME,
     collection_from_product,
     collection_from_project,
     catalog_from_theme,
@@ -112,18 +111,35 @@ def convert_csvs(
     root.add_child(eo_missions_catalog)
     root.add_child(products_catalog)
 
-    themes_catalog.add_children(catalog_from_theme(theme) for theme in themes)
+    themes_catalog.add_children(
+        sorted(
+            (catalog_from_theme(theme) for theme in themes),
+            key=lambda catalog: catalog.id,
+        )
+    )
     variables_catalog.add_children(
-        catalog_from_variable(variable) for variable in variables
+        sorted(
+            (catalog_from_variable(variable) for variable in variables),
+            key=lambda catalog: catalog.id,
+        )
     )
     eo_missions_catalog.add_children(
-        catalog_from_eo_mission(eo_mission) for eo_mission in eo_missions
+        sorted(
+            (catalog_from_eo_mission(eo_mission) for eo_mission in eo_missions),
+            key=lambda catalog: catalog.id,
+        )
     )
     projects_catalog.add_children(
-        collection_from_project(project) for project in projects
+        sorted(
+            (collection_from_project(project) for project in projects),
+            key=lambda collection: collection.id,
+        )
     )
     products_catalog.add_children(
-        collection_from_product(product) for product in products
+        sorted(
+            (collection_from_product(product) for product in products),
+            key=lambda collection: collection.id,
+        )
     )
 
     # save catalog
@@ -463,6 +479,19 @@ def build_dist(
         root.get_child("variables").get_children(),
         root.get_child("eo-missions").get_children(),
     )
+
+    # Apply keywords
+    from itertools import chain
+    catalogs = chain(
+        root.get_child("products").get_children(),
+        root.get_child("projects").get_children(),
+        root.get_child("themes").get_children(),
+        root.get_child("variables").get_children(),
+        root.get_child("eo-missions").get_children(),
+    )
+    from .stac import apply_keywords
+    for catalog in catalogs:
+        apply_keywords(catalog)
 
     # create and store metrics for the root
     # metrics = build_metrics(
