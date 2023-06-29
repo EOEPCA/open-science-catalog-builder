@@ -32,6 +32,7 @@ class Product:
     region: Optional[str] = None
     released: Union[date, None, Literal["Planned"]] = None
     eo_missions: List[str] = field(default_factory=list)
+    keywords: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -82,3 +83,5 @@ class Variable:
 @dataclass
 class EOMission:
     name: str
+    description: str
+    link: str

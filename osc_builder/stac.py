@@ -24,7 +24,7 @@ T = TypeVar("T", pystac.Catalog, pystac.Collection, pystac.Item)
 
 # TODO: fix schema URL
 OSC_SCHEMA_URI: str = (
-    "https://stac-extensions.github.io/osc/v1.0.0-rc.1/schema.json"
+    "https://stac-extensions.github.io/osc/v1.0.0-rc.2/schema.json"
 )
 THEMES_SCHEMA_URI: str = (
     "https://stac-extensions.github.io/themes/v1.0.0/schema.json"
@@ -97,6 +97,7 @@ class CollectionOSCExtension(OSCExtension[pystac.Collection]):
             {
                 "title": product.title,
                 "description": product.description,
+                THEMES_PROP: product.themes,
                 MISSIONS_PROP: product.eo_missions,
                 PROJECT_PROP: product.project,
                 VARIABLES_PROP: product.variables,
@@ -105,9 +106,9 @@ class CollectionOSCExtension(OSCExtension[pystac.Collection]):
                 TYPE_PROP: "product",
             }
         )
-        add_theme_themes(self.collection, product.themes)
-        add_theme_variables(self.collection, product.variables)
-        add_theme_missions(self.collection, product.eo_missions)
+        # add_theme_themes(self.collection, product.themes)
+        # add_theme_variables(self.collection, product.variables)
+        # add_theme_missions(self.collection, product.eo_missions)
 
         common = pystac.CommonMetadata(self.collection)
 
@@ -154,6 +155,7 @@ class CollectionOSCExtension(OSCExtension[pystac.Collection]):
                 "description": project.description,
                 NAME_PROP: project.name,
                 STATUS_PROP: project.status.value.lower(),
+                THEMES_PROP: project.themes,
                 TYPE_PROP: "project",
                 "contacts": [
                     {
@@ -175,7 +177,7 @@ class CollectionOSCExtension(OSCExtension[pystac.Collection]):
                 ],
             }
         )
-        add_theme_themes(self.collection, project.themes)
+        # add_theme_themes(self.collection, project.themes)
         self.collection.stac_extensions.append(CONTACTS_SCHEMA_URI)
 
         common = pystac.CommonMetadata(self.collection)
@@ -213,15 +215,12 @@ def add_themes(catalog: pystac.Catalog, themes: List[str], scheme: str):
             to_add = set(themes) - {
                 concept["id"] for concept in theme_prop["concepts"]
             }
-            theme_prop["concepts"].extend({
-                "id": theme
-            } for theme in to_add)
+            theme_prop["concepts"].extend({"id": theme} for theme in to_add)
             break
     else:
-        themes_prop.append({
-            "scheme": scheme,
-            "concepts": [{"id": theme} for theme in themes]
-        })
+        themes_prop.append(
+            {"scheme": scheme, "concepts": [{"id": theme} for theme in themes]}
+        )
 
     if THEMES_SCHEMA_URI not in catalog.stac_extensions:
         catalog.stac_extensions.append(THEMES_SCHEMA_URI)
@@ -340,11 +339,21 @@ def catalog_from_variable(variable: Variable) -> pystac.Catalog:
 
 
 def catalog_from_eo_mission(eo_mission: EOMission) -> pystac.Catalog:
-    return pystac.Catalog(
+    catalog = pystac.Catalog(
         id=get_eo_mission_id(eo_mission.name),
-        description=eo_mission.name,
+        description=eo_mission.description,
         title=eo_mission.name,
     )
+    if eo_mission.link:
+        catalog.add_link(
+            pystac.Link(
+                rel=pystac.RelType.VIA,
+                target=eo_mission.link,
+                media_type="text/html",
+                title="Description",
+            )
+        )
+    return catalog
 
 
 def get_theme_id(theme_name: str):
@@ -386,13 +395,21 @@ def apply_keywords(catalog: Union[pystac.Catalog, pystac.Collection]):
         keywords = catalog.keywords or []
     else:
         keywords: List[str] = catalog.extra_fields.setdefault("keywords", [])
-    keywords.extend(f"theme:{name}" for name in get_theme_names(catalog))
-    keywords.extend(f"variable:{name}" for name in get_variable_names(catalog))
-    keywords.extend(f"mission:{name}" for name in get_mission_names(catalog))
+    keywords.extend(
+        f"theme:{name}" for name in catalog.extra_fields.get(THEMES_PROP, [])
+    )
+    keywords.extend(
+        f"variable:{name}"
+        for name in catalog.extra_fields.get(VARIABLES_PROP, [])
+    )
+    keywords.extend(
+        f"mission:{name}"
+        for name in catalog.extra_fields.get(MISSIONS_PROP, [])
+    )
     if region := catalog.extra_fields.get(REGION_PROP):
         keywords.append(f"region:{region}")
     if project := catalog.extra_fields.get(PROJECT_PROP):
-        keywords.append(f"proect:{project}")
+        keywords.append(f"project:{project}")
 
     if isinstance(catalog, pystac.Collection):
         catalog.keywords = keywords
