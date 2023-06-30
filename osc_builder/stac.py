@@ -42,6 +42,7 @@ VARIABLES_PROP = f"{PREFIX}variables"
 STATUS_PROP = f"{PREFIX}status"
 REGION_PROP = f"{PREFIX}region"
 MISSIONS_PROP = f"{PREFIX}missions"
+STANDARD_NAME_PROP = f"{PREFIX}standard_name"
 
 OSC_SCHEME_THEMES = "https://github.com/stac-extensions/osc#theme"
 OSC_SCHEME_VARIABLES = "https://github.com/stac-extensions/osc#variable"
@@ -104,8 +105,11 @@ class CollectionOSCExtension(OSCExtension[pystac.Collection]):
                 STATUS_PROP: product.status.value.lower(),
                 REGION_PROP: product.region,
                 TYPE_PROP: "product",
+                STANDARD_NAME_PROP: product.standard_name,
             }
         )
+        self.collection.keywords = product.keywords
+
         # add_theme_themes(self.collection, product.themes)
         # add_theme_variables(self.collection, product.variables)
         # add_theme_missions(self.collection, product.eo_missions)
@@ -379,15 +383,18 @@ def get_concept_names(catalog: pystac.Catalog, scheme: str):
 
 
 def get_theme_names(catalog: pystac.Catalog) -> Iterable[str]:
-    return get_concept_names(catalog, OSC_SCHEME_THEMES)
+    return catalog.extra_fields.get(THEMES_PROP, [])
+    # return get_concept_names(catalog, OSC_SCHEME_THEMES)
 
 
 def get_variable_names(catalog: pystac.Catalog) -> Iterable[str]:
-    return get_concept_names(catalog, OSC_SCHEME_VARIABLES)
+    return catalog.extra_fields.get(VARIABLES_PROP, [])
+    # return get_concept_names(catalog, OSC_SCHEME_VARIABLES)
 
 
 def get_mission_names(catalog: pystac.Catalog) -> Iterable[str]:
-    return get_concept_names(catalog, OSC_SCHEME_MISSIONS)
+    return catalog.extra_fields.get(MISSIONS_PROP, [])
+    # return get_concept_names(catalog, OSC_SCHEME_MISSIONS)
 
 
 def apply_keywords(catalog: Union[pystac.Catalog, pystac.Collection]):

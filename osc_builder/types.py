@@ -33,6 +33,7 @@ class Product:
     released: Union[date, None, Literal["Planned"]] = None
     eo_missions: List[str] = field(default_factory=list)
     keywords: List[str] = field(default_factory=list)
+    standard_name: Optional[str] = None
 
 
 @dataclass
