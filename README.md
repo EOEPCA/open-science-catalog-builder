@@ -27,6 +27,7 @@ Options:
 Commands:
   build
   convert
+  metrics
 ```
 
 It uses the subcommands `convert` and `build`.
@@ -38,8 +39,8 @@ This command transforms the original metadata CSVs into an intermediate structur
 
 ```bash
 $ osc convert --help
-Usage: osc convert [OPTIONS] VARIABLES_FILE THEMES_FILE PROJECTS_FILE
-                   PRODUCTS_FILE
+Usage: osc convert [OPTIONS] VARIABLES_FILE THEMES_FILE EO_MISSIONS
+                              PROJECTS_FILE PRODUCTS_FILE
 
 Options:
   -o, --out-dir TEXT

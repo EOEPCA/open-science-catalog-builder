@@ -20,7 +20,7 @@ class Product:
     title: str
     description: str
     project: str
-    variable: str
+    variables: List[str]
     themes: List[str]
     access: str
     documentation: Optional[str] = None
@@ -32,6 +32,8 @@ class Product:
     region: Optional[str] = None
     released: Union[date, None, Literal["Planned"]] = None
     eo_missions: List[str] = field(default_factory=list)
+    keywords: List[str] = field(default_factory=list)
+    standard_name: Optional[str] = None
 
 
 @dataclass
@@ -69,4 +71,18 @@ class Variable:
     name: str
     description: str
     link: str
-    theme: str
+    themes: List[str]
+
+    @classmethod
+    def from_raw(cls, **kwargs):
+        theme = kwargs.pop("theme", None)
+        if theme and "themes" not in kwargs:
+            kwargs["themes"] = [theme]
+        return cls(**kwargs)
+
+
+@dataclass
+class EOMission:
+    name: str
+    description: str
+    link: str
