@@ -25,7 +25,6 @@ class Product:
     access: str
     documentation: Optional[str] = None
     doi: Optional[str] = None
-    version: Optional[str] = None
     start: Optional[datetime] = None
     end: Optional[datetime] = None
     geometry: Optional[pygeoif.geometry._Geometry] = None
@@ -50,7 +49,6 @@ class Project:
     title: str
     description: str
     website: str
-    eo4_society_link: str
     consortium: List[str]
     start: datetime
     end: datetime

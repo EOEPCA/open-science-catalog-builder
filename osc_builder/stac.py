@@ -126,8 +126,6 @@ class CollectionOSCExtension(OSCExtension[pystac.Collection]):
             common.start_datetime = product.start
         if product.end:
             common.end_datetime = product.end
-        if product.version:
-            self.properties["version"] = product.version
 
         if product.website:
             self.collection.add_link(
@@ -196,14 +194,6 @@ class CollectionOSCExtension(OSCExtension[pystac.Collection]):
                     pystac.RelType.VIA,
                     project.website,
                     title="Website",
-                )
-            )
-        if project.eo4_society_link:
-            self.collection.add_link(
-                pystac.Link(
-                    pystac.RelType.VIA,
-                    project.eo4_society_link,
-                    title="EO4Society Link",
                 )
             )
 

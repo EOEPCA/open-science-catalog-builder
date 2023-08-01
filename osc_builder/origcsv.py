@@ -91,7 +91,6 @@ def load_orig_products(file: TextIO) -> List[Product]:
             access=line["Access"],
             documentation=line["Documentation"] or None,
             doi=urlparse(line["DOI"]).path[1:] if line["DOI"] else None,
-            version=line["Version"] or None,
             start=_parse_date(line["Start"]),
             end=_parse_date(line["End"]),
             geometry=parse_geometry(line["Polygon"]),
@@ -115,7 +114,6 @@ def load_orig_projects(file: TextIO) -> List[Project]:
             title=line["Short_Name"],
             description=line["Short_Description"],
             website=line["Website"],
-            eo4_society_link=line["Eo4Society_link"],
             consortium=parse_list(line["Consortium"], ","),
             start=datetime.combine(
                 parse_datetime(line["Start_Date_Project"]).date(),
