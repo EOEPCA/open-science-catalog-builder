@@ -15,7 +15,6 @@ class Status(Enum):
 @dataclass
 class Product:
     id: str
-    status: Status
     website: str
     title: str
     description: str
@@ -32,7 +31,11 @@ class Product:
     released: Union[date, None, Literal["Planned"]] = None
     eo_missions: List[str] = field(default_factory=list)
     keywords: List[str] = field(default_factory=list)
-    standard_name: Optional[str] = None
+    format: Optional[str] = None
+    category: Optional[str] = None
+    coordinate: Optional[str] = None
+    spatial_resolution: Optional[str] = None
+    temporal_resolution: Optional[str] = None
 
 
 @dataclass

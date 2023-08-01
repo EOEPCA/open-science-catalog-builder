@@ -81,7 +81,6 @@ def load_orig_products(file: TextIO) -> List[Product]:
     products = [
         Product(
             id=line["Short_Name"],
-            status=Status(line["Status"].upper()),
             website=line.get("Website"),
             title=line["Product"],
             description=line["Description"],
@@ -98,7 +97,11 @@ def load_orig_products(file: TextIO) -> List[Product]:
             released=parse_released(line["Released"]),
             eo_missions=parse_list(line["EO_Missions"]),
             keywords=parse_list(line["Keywords"]) if "Keywords" in line else [],
-            standard_name=line.get("Standard_Name")
+            format=line["Format"] or None,
+            category=line["Category"] or None,
+            coordinate=line["Coordinate"] or None,
+            spatial_resolution=line["Spatial Resolution"] or None,
+            temporal_resolution=line["Temporal Resolution"] or None,
         )
         for line in csv.DictReader(file)
     ]

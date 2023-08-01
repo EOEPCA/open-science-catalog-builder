@@ -43,6 +43,11 @@ STATUS_PROP = f"{PREFIX}status"
 REGION_PROP = f"{PREFIX}region"
 MISSIONS_PROP = f"{PREFIX}missions"
 STANDARD_NAME_PROP = f"{PREFIX}standard_name"
+FORMAT_NAME_PROP = f"{PREFIX}format"
+CATEGORY_NAME_PROP = f"{PREFIX}category"
+COORDINATE_NAME_PROP = f"{PREFIX}coordinate_system"
+SPATIAL_RESOLUTION_NAME_PROP = f"{PREFIX}spatial_resolution"
+TEMPORAL_RESOLUTION_NAME_PROP = f"{PREFIX}temporal_resolution"
 
 OSC_SCHEME_THEMES = "https://github.com/stac-extensions/osc#theme"
 OSC_SCHEME_VARIABLES = "https://github.com/stac-extensions/osc#variable"
@@ -98,14 +103,17 @@ class CollectionOSCExtension(OSCExtension[pystac.Collection]):
             {
                 "title": product.title,
                 "description": product.description,
+                TYPE_PROP: "product",
                 THEMES_PROP: product.themes,
                 MISSIONS_PROP: product.eo_missions,
                 PROJECT_PROP: product.project,
                 VARIABLES_PROP: product.variables,
-                STATUS_PROP: product.status.value.lower(),
                 REGION_PROP: product.region,
-                TYPE_PROP: "product",
-                STANDARD_NAME_PROP: product.standard_name,
+                CATEGORY_NAME_PROP: product.category,
+                FORMAT_NAME_PROP: product.format,
+                COORDINATE_NAME_PROP: product.coordinate,
+                SPATIAL_RESOLUTION_NAME_PROP: product.spatial_resolution,
+                TEMPORAL_RESOLUTION_NAME_PROP: product.temporal_resolution,
             }
         )
         self.collection.keywords = product.keywords
