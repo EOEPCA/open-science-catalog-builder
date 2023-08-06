@@ -12,7 +12,8 @@ def cli(ctx):
     pass
 
 
-ENCODING = "ISO-8859-1"
+#ENCODING = "ISO-8859-1"
+ENCODING = "UTF-8"
 
 
 @cli.command()
