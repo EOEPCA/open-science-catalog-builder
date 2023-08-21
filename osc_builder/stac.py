@@ -42,7 +42,6 @@ VARIABLES_PROP = f"{PREFIX}variables"
 STATUS_PROP = f"{PREFIX}status"
 REGION_PROP = f"{PREFIX}region"
 MISSIONS_PROP = f"{PREFIX}missions"
-STANDARD_NAME_PROP = f"{PREFIX}standard_name"
 
 OSC_SCHEME_THEMES = "https://github.com/stac-extensions/osc#theme"
 OSC_SCHEME_VARIABLES = "https://github.com/stac-extensions/osc#variable"
@@ -103,11 +102,12 @@ class CollectionOSCExtension(OSCExtension[pystac.Collection]):
                 PROJECT_PROP: product.project,
                 VARIABLES_PROP: product.variables,
                 STATUS_PROP: product.status.value.lower(),
-                REGION_PROP: product.region,
                 TYPE_PROP: "product",
-                STANDARD_NAME_PROP: product.standard_name,
+                NAME_PROP: product.standard_name,
             }
         )
+        if product.region:
+            self.properties[REGION_PROP] = product.region
         self.collection.keywords = product.keywords
 
         # add_theme_themes(self.collection, product.themes)
@@ -153,6 +153,27 @@ class CollectionOSCExtension(OSCExtension[pystac.Collection]):
             )
 
     def apply_project(self, project: Project):
+        contacts = []
+
+        if project.technical_officer.name:
+            officer = {
+                "name": project.technical_officer.name,
+                "role": "technical_officer",
+            }
+            if project.technical_officer.e_mail:
+                officer["emails"] = [
+                    {
+                        "value": project.technical_officer.e_mail,
+                    }
+                ]
+            contacts.append(officer)
+
+        for consortium_member in project.consortium:
+            contacts.append({
+                "name": consortium_member,
+                "role": "consortium_member",
+            })
+        
         self.properties.update(
             {
                 "title": project.title,
@@ -161,24 +182,7 @@ class CollectionOSCExtension(OSCExtension[pystac.Collection]):
                 STATUS_PROP: project.status.value.lower(),
                 THEMES_PROP: project.themes,
                 TYPE_PROP: "project",
-                "contacts": [
-                    {
-                        "name": project.technical_officer.name,
-                        "role": "technical_officer",
-                        "emails": [
-                            {
-                                "value": project.technical_officer.e_mail,
-                            }
-                        ],
-                    }
-                ]
-                + [
-                    {
-                        "name": consortium_member,
-                        "role": "consortium_member",
-                    }
-                    for consortium_member in project.consortium
-                ],
+                "contacts": contacts,
             }
         )
         # add_theme_themes(self.collection, project.themes)
@@ -256,11 +260,11 @@ def collection_from_product(product: Product) -> pystac.Collection:
         slug,
         product.description,
         extent=pystac.Extent(
-            pystac.SpatialExtent(
+            pystac.SpatialExtent([
                 product.geometry.bounds
                 if product.geometry
                 else [-180.0, -90.0, 180.0, 90.0]
-            ),
+            ]),
             pystac.TemporalExtent([[product.start, product.end]]),
         ),
         title=product.title,
@@ -282,7 +286,7 @@ def collection_from_project(project: Project) -> pystac.Item:
         project.description,
         extent=pystac.Extent(
             # todo: ESA should provide this
-            pystac.SpatialExtent([-180.0, -90.0, 180.0, 90.0]),
+            pystac.SpatialExtent([[-180.0, -90.0, 180.0, 90.0]]),
             pystac.TemporalExtent([[project.start, project.end]]),
         ),
         title=project.title,
@@ -313,14 +317,15 @@ def catalog_from_theme(theme: Theme) -> pystac.Catalog:
                 },
             )
         )
-    catalog.add_link(
-        pystac.Link(
-            rel=pystac.RelType.VIA,
-            target=theme.link,
-            media_type="text/html",
-            title="Description",
+    if theme.link:
+        catalog.add_link(
+            pystac.Link(
+                rel=pystac.RelType.VIA,
+                target=theme.link,
+                media_type="text/html",
+                title="Description",
+            )
         )
-    )
     return catalog
 
 
@@ -331,14 +336,15 @@ def catalog_from_variable(variable: Variable) -> pystac.Catalog:
         title=variable.name,
     )
     add_theme_themes(catalog, variable.themes)
-    catalog.add_link(
-        pystac.Link(
-            rel=pystac.RelType.VIA,
-            target=variable.link,
-            media_type="text/html",
-            title="Description",
+    if variable.link:
+        catalog.add_link(
+            pystac.Link(
+                rel=pystac.RelType.VIA,
+                target=variable.link,
+                media_type="text/html",
+                title="Description",
+            )
         )
-    )
     return catalog
 
 
