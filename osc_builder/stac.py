@@ -32,6 +32,9 @@ THEMES_SCHEMA_URI: str = (
 CONTACTS_SCHEMA_URI: str = (
     "https://stac-extensions.github.io/contacts/v0.1.1/schema.json"
 )
+CF_SCHEMA_URI: str = (
+    "https://stac-extensions.github.io/cf/v1.0.0/schema.json"
+)
 PREFIX: str = "osc:"
 
 TYPE_PROP = f"{PREFIX}type"
@@ -42,6 +45,7 @@ VARIABLES_PROP = f"{PREFIX}variables"
 STATUS_PROP = f"{PREFIX}status"
 REGION_PROP = f"{PREFIX}region"
 MISSIONS_PROP = f"{PREFIX}missions"
+STANDARD_NAME_PROP = "cf:parameter"
 
 OSC_SCHEME_THEMES = "https://github.com/stac-extensions/osc#theme"
 OSC_SCHEME_VARIABLES = "https://github.com/stac-extensions/osc#variable"
@@ -103,9 +107,14 @@ class CollectionOSCExtension(OSCExtension[pystac.Collection]):
                 VARIABLES_PROP: product.variables,
                 STATUS_PROP: product.status.value.lower(),
                 TYPE_PROP: "product",
-                NAME_PROP: product.standard_name,
             }
         )
+        if product.standard_name:
+            # ToDo: Add the schema to stac_extensions once released
+            # self.collection.stac_extensions.append(CF_SCHEMA_URI)
+            self.properties[STANDARD_NAME_PROP] = {
+                "name": product.standard_name,
+            }
         if product.region:
             self.properties[REGION_PROP] = product.region
         self.collection.keywords = product.keywords
