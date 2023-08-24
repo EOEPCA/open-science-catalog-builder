@@ -13,33 +13,17 @@ class Status(Enum):
 
 
 @dataclass
-class Product:
-    id: str
-    status: Status
-    website: str
-    title: str
-    description: str
-    project: str
-    variables: List[str]
-    themes: List[str]
-    access: str
-    documentation: Optional[str] = None
-    doi: Optional[str] = None
-    version: Optional[str] = None
-    start: Optional[datetime] = None
-    end: Optional[datetime] = None
-    geometry: Optional[pygeoif.geometry._Geometry] = None
-    region: Optional[str] = None
-    released: Union[date, None, Literal["Planned"]] = None
-    eo_missions: List[str] = field(default_factory=list)
-    keywords: List[str] = field(default_factory=list)
-    standard_name: Optional[str] = None
-
-
-@dataclass
 class Contact:
     name: str
     e_mail: str
+
+
+@dataclass
+class Theme:
+    name: str
+    description: str
+    link: str
+    image: Optional[str] = None
 
 
 @dataclass
@@ -59,11 +43,27 @@ class Project:
 
 
 @dataclass
-class Theme:
-    name: str
+class Product:
+    id: str
+    status: Status
+    website: str
+    title: str
     description: str
-    link: str
-    image: Optional[str] = None
+    project: Project
+    variables: List[str]
+    themes: List[str]
+    access: str
+    documentation: Optional[str] = None
+    doi: Optional[str] = None
+    version: Optional[str] = None
+    start: Optional[datetime] = None
+    end: Optional[datetime] = None
+    geometry: Optional[pygeoif.geometry._Geometry] = None
+    region: Optional[str] = None
+    released: Union[date, None, Literal["Planned"]] = None
+    eo_missions: List[str] = field(default_factory=list)
+    keywords: List[str] = field(default_factory=list)
+    standard_name: Optional[str] = None
 
 
 @dataclass

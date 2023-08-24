@@ -61,7 +61,7 @@ def convert_csvs(
     variables = load_orig_variables(variables_file)
     themes = load_orig_themes(themes_file)
     projects = load_orig_projects(projects_file)
-    products = load_orig_products(products_file)
+    products = load_orig_products(products_file, projects)
     eo_missions = load_orig_eo_missions(eo_missions_file)
 
     # set root structure
