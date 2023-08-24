@@ -13,6 +13,7 @@ from pystac.extensions.base import (
     PropertiesExtension,
 )
 import pystac.stac_io
+from pystac.summaries import Summaries
 import pystac.link
 
 from .types import Product, Project, Theme, Variable, EOMission
@@ -109,13 +110,17 @@ class CollectionOSCExtension(OSCExtension[pystac.Collection]):
                 TYPE_PROP: "product",
             }
         )
+
         if product.standard_name:
             self.collection.stac_extensions.append(CF_SCHEMA_URI)
-            self.properties[STANDARD_NAME_PROP] = [
+            if not isinstance(self.collection.summaries, Summaries):
+                self.collection.summaries = Summaries()
+            self.collection.summaries.add(STANDARD_NAME_PROP, [
                 {
                     "name": product.standard_name,
                 }
-            ]
+            ])
+
         if product.region:
             self.properties[REGION_PROP] = product.region
         self.collection.keywords = product.keywords
