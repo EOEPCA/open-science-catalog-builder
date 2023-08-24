@@ -89,6 +89,7 @@ def load_orig_products(file: TextIO) -> List[Product]:
             released=parse_released(line["Released"]),
             eo_missions=parse_list(line["EO_Missions"]),
             keywords=parse_list(line["Keywords"]),
+            standard_name=line.get("Standard_Name")
         )
         for line in csv.DictReader(file)
     ]
