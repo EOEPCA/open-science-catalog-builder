@@ -13,7 +13,6 @@ from pystac.extensions.base import (
     PropertiesExtension,
 )
 import pystac.stac_io
-from pystac.summaries import Summaries
 import pystac.link
 
 from .types import Product, Project, Theme, Variable, EOMission
@@ -34,7 +33,7 @@ CONTACTS_SCHEMA_URI: str = (
     "https://stac-extensions.github.io/contacts/v0.1.1/schema.json"
 )
 CF_SCHEMA_URI: str = (
-    "https://stac-extensions.github.io/cf/v0.1.0/schema.json"
+    "https://stac-extensions.github.io/cf/v0.2.0/schema.json"
 )
 PREFIX: str = "osc:"
 
@@ -113,13 +112,11 @@ class CollectionOSCExtension(OSCExtension[pystac.Collection]):
 
         if product.standard_name:
             self.collection.stac_extensions.append(CF_SCHEMA_URI)
-            if not isinstance(self.collection.summaries, Summaries):
-                self.collection.summaries = Summaries()
-            self.collection.summaries.add(STANDARD_NAME_PROP, [
+            self.collection[STANDARD_NAME_PROP] = [
                 {
                     "name": product.standard_name,
                 }
-            ])
+            ]
 
         if product.region:
             self.properties[REGION_PROP] = product.region
