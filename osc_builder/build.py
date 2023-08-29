@@ -3,17 +3,16 @@ import json
 import os
 import os.path
 import shutil
-from typing import TextIO, Optional, Iterable
+from typing import TextIO, Optional, Iterable, List
 from urllib.parse import urlparse
+from itertools import chain
 
 import pystac
 import pystac.layout
 import pystac.link
 import pystac.utils
 from slugify import slugify
-
-from .codelist import build_codelists
-from .stac import apply_keywords
+from .mystac import STACObject, normpath, make_absolute_hrefs
 
 # from .iso import generate_product_metadata, generate_project_metadata
 from .origcsv import (
@@ -29,18 +28,16 @@ from .stac import (
     MISSIONS_PROP,
     VARIABLES_PROP,
     THEMES_PROP,
+    REGION_PROP,
     collection_from_product,
     collection_from_project,
     catalog_from_theme,
     catalog_from_variable,
     catalog_from_eo_mission,
-    get_theme_names,
     get_theme_id,
     get_variable_id,
     get_eo_mission_id,
-    FakeHTTPStacIO,
 )
-from .types import Theme, Variable, EOMission
 
 # to fix https://github.com/stac-utils/pystac/issues/1112
 if "related" not in pystac.link.HIERARCHICAL_LINKS:
@@ -220,7 +217,7 @@ def validate_catalog(data_dir: str):
     # TODO: raise Exception if validation_errors
 
 
-def set_update_timestamps(path: str, catalog: dict) -> Optional[datetime]:
+def set_update_timestamps(path: str, catalog: STACObject) -> Optional[datetime]:
     """Updates the `updated` field in the catalog according to the underlying
     files last modification time and its included Items and children. This also
     updates the included STAC Items `updated` property respectively.
@@ -245,46 +242,38 @@ def set_update_timestamps(path: str, catalog: dict) -> Optional[datetime]:
 
     updated = datetime.fromtimestamp(os.path.getmtime(path), tz=timezone.utc)
 
-    for child_href in get_child_hrefs(catalog):
+    for link in catalog.get_links("child"):
+        child_href = link["href"]
         # only follow relative links
         if urlparse(child_href).scheme not in ("", "file"):
             continue
 
-        child_path = relpath(path, child_href)
-        child = read_json(child_href)
+        child_path = normpath(path, child_href)
+        child = STACObject.from_file(child_path)
 
         child_updated = set_update_timestamps(child_path, child)
         if child_updated:
             updated = max(updated, child_updated)
 
-    for item_href in get_item_hrefs(catalog):
+    for link in catalog.get_links("item"):
+        item_href = link["href"]
         if urlparse(item_href).scheme not in ("", "file"):
             continue
 
-        item_path = relpath(path, item_href)
+        item_path = normpath(path, item_href)
         item_updated = datetime.fromtimestamp(
             os.path.getmtime(item_path), tz=timezone.utc
         )
-        item = read_json(item_path)
-        item["properties"]["updated"] = item_updated.isoformat()
-        write_json(item_path, item)
+        item = STACObject.from_file(item_path)
+        item.setdefault("properties", {})["updated"] = item_updated.isoformat()
+        item.save()
         updated = max(updated, item_updated)
 
     if updated:
         catalog["updated"] = updated.isoformat()
-        write_json(path, catalog)
+        catalog.save()
 
     return updated
-
-
-def make_collection_assets_absolute(collection: pystac.Collection):
-    for asset in collection.assets.values():
-        asset.href = pystac.utils.make_absolute_href(
-            asset.href, collection.get_self_href()
-        )
-
-
-from .mystac import STACObject
 
 
 def link_collections(
@@ -309,198 +298,113 @@ def link_collections(
 
     # link variable -> themes
     for variable_catalog in variable_catalogs:
-        variable_catalog.add_links(
-            [
-                pystac.Link(
-                    rel="related",
-                    target=themes_map[theme_name],
-                    media_type="application/json",
-                    title=f"Theme: {themes_map[theme_name].title}",
-                )
-                for theme_name in get_theme_names(validate_catalog)
-            ]
-        )
+        for theme_name in variable_catalog.get(THEMES_PROP, []):
+            theme = themes_map[get_theme_id(theme_name)]
+            variable_catalog.add_object_link(
+                theme,
+                rel="related",
+                type="application/json",
+                title=f"Theme: {theme['title']}",
+            )
 
     # link projects -> themes
     for project_collection in project_collections:
-        project_collection.add_links(
-            [
-                pystac.Link(
-                    rel="related",
-                    target=themes_map[theme],
-                    media_type="application/json",
-                    title=f"Theme: {themes_map[theme].title}",
-                )
-                for theme in get_theme_names(project_collection)
-            ]
-        )
+        for theme_name in project_collection.get(THEMES_PROP, []):
+            theme = themes_map[get_theme_id(theme_name)]
+            project_collection.add_object_link(
+                theme,
+                rel="related",
+                title=f"Theme: {theme['title']}",
+            )
 
     # link products
     for product_collection in product_collections:
         # product -> project
         project_collection = project_map[
-            slugify(product_collection.extra_fields[PROJECT_PROP])
+            slugify(product_collection[PROJECT_PROP])
         ]
-        print(f"Linking {product_collection} -> {project_collection}")
-        product_collection.add_link(
-            pystac.Link(
-                rel="related",
-                target=project_collection,
-                media_type="application/json",
-                title=f"Project: {project_collection.title}",
-            )
+        print(f"Linking {product_collection['id']} -> {project_collection['id']}")
+        product_collection.add_object_link(
+            project_collection,
+            rel="related",
+            title=f"Project: {project_collection['title']}",
         )
-        project_collection.add_child(product_collection, keep_parent=True)
+        project_collection.add_object_link(
+            product_collection,
+            rel="child",
+            type="application/json",
+            title=f"Product: {product_collection['title']}",
+        )
 
         # product -> themes
-        for theme_name in get_theme_names(product_collection):
-            print(f"Linking {product_collection} -> {theme_name}")
-            theme_catalog = themes_map[get_theme_id(theme_name)]
-            product_collection.add_link(
-                pystac.Link(
-                    rel="related",
-                    target=theme_catalog,
-                    media_type="application/json",
-                    title=f"Theme: {theme_catalog.title}",
-                )
-            )
-            theme_catalog.add_child(product_collection, keep_parent=True)
-
-        # product -> variables
-        for variable_name in product_collection.extra_fields[VARIABLES_PROP]:
-            print(f"Linking {product_collection} -> {variable_name}")
-            variable_catalog = variables_map[get_variable_id(variable_name)]
-            product_collection.add_link(
-                pystac.Link(
-                    rel="related",
-                    target=variable_catalog,
-                    media_type="application/json",
-                    title=f"Variable: {variable_catalog.title}",
-                )
-            )
-            variable_catalog.add_child(product_collection, keep_parent=True)
-
-        # product -> eo mission
-        for eo_mission in product_collection.extra_fields[MISSIONS_PROP]:
-            print(f"Linking {product_collection} -> {eo_mission}")
-            eo_mission_catalog = eo_missions_map[get_eo_mission_id(eo_mission)]
-            product_collection.add_link(
-                pystac.Link(
-                    rel="related",
-                    target=eo_mission_catalog,
-                    media_type="application/json",
-                    title=f"EO Mission: {eo_mission_catalog.title}",
-                )
-            )
-            eo_mission_catalog.add_child(product_collection, keep_parent=True)
-
-
-def link_collections_(
-    product_collections: Iterable[pystac.Collection],
-    project_collections: Iterable[pystac.Collection],
-    theme_catalogs: Iterable[pystac.Catalog],
-    variable_catalogs: Iterable[pystac.Catalog],
-    eo_mission_catalogs: Iterable[pystac.Catalog],
-):
-    themes_map: dict[str, pystac.Catalog] = {
-        catalog.id: catalog for catalog in theme_catalogs
-    }
-    variables_map: dict[str, pystac.Catalog] = {
-        catalog.id: catalog for catalog in variable_catalogs
-    }
-    eo_missions_map: dict[str, pystac.Catalog] = {
-        catalog.id: catalog for catalog in eo_mission_catalogs
-    }
-    project_map: dict[str, pystac.Collection] = {
-        collection.id: collection for collection in project_collections
-    }
-
-    # link variable -> themes
-    for variable_catalog in variable_catalogs:
-        variable_catalog.add_links(
-            [
-                pystac.Link(
-                    rel="related",
-                    target=themes_map[theme_name],
-                    media_type="application/json",
-                    title=f"Theme: {themes_map[theme_name].title}",
-                )
-                for theme_name in get_theme_names(validate_catalog)
-            ]
-        )
-
-    # link projects -> themes
-    for project_collection in project_collections:
-        project_collection.add_links(
-            [
-                pystac.Link(
-                    rel="related",
-                    target=themes_map[theme],
-                    media_type="application/json",
-                    title=f"Theme: {themes_map[theme].title}",
-                )
-                for theme in get_theme_names(project_collection)
-            ]
-        )
-
-    # link products
-    for product_collection in product_collections:
-        # product -> project
-        project_collection = project_map[
-            slugify(product_collection.extra_fields[PROJECT_PROP])
-        ]
-        print(f"Linking {product_collection} -> {project_collection}")
-        product_collection.add_link(
-            pystac.Link(
+        for theme_name in product_collection.get(THEMES_PROP, []):
+            theme = themes_map[get_theme_id(theme_name)]
+            print(f"Linking {product_collection['id']} -> {theme['id']}")
+            product_collection.add_object_link(
+                theme,
                 rel="related",
-                target=project_collection,
-                media_type="application/json",
-                title=f"Project: {project_collection.title}",
+                type="application/json",
+                title=f"Theme: {theme['title']}",
             )
-        )
-        project_collection.add_child(product_collection, keep_parent=True)
-
-        # product -> themes
-        for theme_name in get_theme_names(product_collection):
-            print(f"Linking {product_collection} -> {theme_name}")
-            theme_catalog = themes_map[get_theme_id(theme_name)]
-            product_collection.add_link(
-                pystac.Link(
-                    rel="related",
-                    target=theme_catalog,
-                    media_type="application/json",
-                    title=f"Theme: {theme_catalog.title}",
-                )
+            theme.add_object_link(
+                product_collection,
+                rel="child",
+                type="application/json",
+                title=f"Product: {product_collection['title']}",
             )
-            theme_catalog.add_child(product_collection, keep_parent=True)
 
         # product -> variables
-        for variable_name in product_collection.extra_fields[VARIABLES_PROP]:
-            print(f"Linking {product_collection} -> {variable_name}")
-            variable_catalog = variables_map[get_variable_id(variable_name)]
-            product_collection.add_link(
-                pystac.Link(
-                    rel="related",
-                    target=variable_catalog,
-                    media_type="application/json",
-                    title=f"Variable: {variable_catalog.title}",
-                )
+        for variable_name in product_collection.get(VARIABLES_PROP, []):
+            variable = variables_map[get_variable_id(variable_name)]
+            print(f"Linking {product_collection['id']} -> {variable['id']}")
+            product_collection.add_object_link(
+                variable,
+                rel="related",
+                type="application/json",
+                title=f"Variable: {variable['title']}",
             )
-            variable_catalog.add_child(product_collection, keep_parent=True)
+            variable.add_object_link(
+                product_collection,
+                rel="child",
+                type="application/json",
+                title=f"Product: {product_collection['title']}",
+            )
 
         # product -> eo mission
-        for eo_mission in product_collection.extra_fields[MISSIONS_PROP]:
-            print(f"Linking {product_collection} -> {eo_mission}")
-            eo_mission_catalog = eo_missions_map[get_eo_mission_id(eo_mission)]
-            product_collection.add_link(
-                pystac.Link(
-                    rel="related",
-                    target=eo_mission_catalog,
-                    media_type="application/json",
-                    title=f"EO Mission: {eo_mission_catalog.title}",
-                )
+        for eo_mission_name in product_collection.get(MISSIONS_PROP, []):
+            eo_mission = eo_missions_map[get_eo_mission_id(eo_mission_name)]
+            print(f"Linking {product_collection['id']} -> {eo_mission['id']}")
+            product_collection.add_object_link(
+                eo_mission,
+                rel="related",
+                type="application/json",
+                title=f"EO Mission: {eo_mission['title']}",
             )
-            eo_mission_catalog.add_child(product_collection, keep_parent=True)
+            eo_mission.add_object_link(
+                product_collection,
+                rel="child",
+                type="application/json",
+                title=f"Product: {product_collection['title']}",
+            )
+
+
+def apply_keywords(catalog: STACObject):
+    keywords: List[str] = catalog.setdefault("keywords", [])
+    keywords.extend(
+        f"theme:{name}" for name in catalog.get(THEMES_PROP, [])
+    )
+    keywords.extend(
+        f"variable:{name}"
+        for name in catalog.get(VARIABLES_PROP, [])
+    )
+    keywords.extend(
+        f"mission:{name}"
+        for name in catalog.get(MISSIONS_PROP, [])
+    )
+    if region := catalog.get(REGION_PROP):
+        keywords.append(f"region:{region}")
+    if project := catalog.get(PROJECT_PROP):
+        keywords.append(f"project:{project}")
 
 
 def build_dist(
@@ -515,33 +419,39 @@ def build_dist(
         data_dir,
         out_dir,
     )
-
-    root = read_json(os.path.join(out_dir, "catalog.json"))
+    root_path = os.path.join(out_dir, "catalog.json")
+    root = STACObject.from_file(root_path)
 
     if update_timestamps:
-        set_update_timestamps(root, None)
+        set_update_timestamps(root_path, root)
+
+    products = list(root.get_child("products").get_children())
+    projects = list(root.get_child("projects").get_children())
+    themes = list(root.get_child("themes").get_children())
+    variables = list(root.get_child("variables").get_children())
+    eo_missions = list(root.get_child("eo-missions").get_children())
 
     link_collections(
-        root.get_child("products").get_children(),
-        root.get_child("projects").get_children(),
-        root.get_child("themes").get_children(),
-        root.get_child("variables").get_children(),
-        root.get_child("eo-missions").get_children(),
+        products,
+        projects,
+        themes,
+        variables,
+        eo_missions,
     )
 
     # Apply keywords
-    from itertools import chain
     catalogs = chain(
-        root.get_child("products").get_children(),
-        root.get_child("projects").get_children(),
-        root.get_child("themes").get_children(),
-        root.get_child("variables").get_children(),
-        root.get_child("eo-missions").get_children(),
+        products,
+        projects,
+        themes,
+        variables,
+        eo_missions,
     )
-    from .stac import apply_keywords
     for catalog in catalogs:
         apply_keywords(catalog)
-    root.save(pystac.CatalogType.SELF_CONTAINED, dest_href=out_dir)
+        catalog.save()
+
+    make_absolute_hrefs(root, root_href, "catalog.json")
 
 
 def build_metrics(
