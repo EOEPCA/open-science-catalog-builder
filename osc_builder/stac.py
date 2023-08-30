@@ -112,7 +112,7 @@ class CollectionOSCExtension(OSCExtension[pystac.Collection]):
 
         if product.standard_name:
             self.collection.stac_extensions.append(CF_SCHEMA_URI)
-            self.collection[STANDARD_NAME_PROP] = [
+            self.properties[STANDARD_NAME_PROP] = [
                 {
                     "name": product.standard_name,
                 }
