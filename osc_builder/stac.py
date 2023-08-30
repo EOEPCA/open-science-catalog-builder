@@ -24,7 +24,7 @@ T = TypeVar("T", pystac.Catalog, pystac.Collection, pystac.Item)
 
 # TODO: fix schema URL
 OSC_SCHEMA_URI: str = (
-    "https://stac-extensions.github.io/osc/v1.0.0-rc.2/schema.json"
+    "https://stac-extensions.github.io/osc/v1.0.0-rc.3/schema.json"
 )
 THEMES_SCHEMA_URI: str = (
     "https://stac-extensions.github.io/themes/v1.0.0/schema.json"
@@ -128,7 +128,6 @@ class CollectionOSCExtension(OSCExtension[pystac.Collection]):
 
         common = pystac.CommonMetadata(self.collection)
 
-        # TODO: handle "Planned" value
         if isinstance(product.released, date):
             common.created = datetime.combine(
                 product.released, time.min, timezone.utc
