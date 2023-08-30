@@ -3,7 +3,7 @@ from typing import List
 from lxml.builder import ElementMaker
 from lxml import etree
 
-from .types import Theme, Variable
+from .types import Theme, Variable, EOMission
 
 nsmap = {
     "gmd": "http://www.isotc211.org/2005/gmd",
@@ -21,20 +21,31 @@ GCO = ElementMaker(namespace=nsmap["gco"], nsmap=nsmap)
 
 
 def build_codelists(
-    themes: List[Theme], variables: List[Variable], eo_missions: List[str]
+    themes: List[Theme],
+    variables: List[Variable],
+    eo_missions: List[EOMission],
 ) -> etree._ElementTree:
     # create codelists.xml
     root = GMX(
         "CT_CodelistCatalogue",
         GMX("name", GCO("CharacterString", "OSC_Codelists")),
-        GMX("scope", GCO("CharacterString", "Codelists for Open Science Catalog")),
-        GMX("fieldOfApplication", GCO("CharacterString", "Open Science Catalog")),
+        GMX(
+            "scope",
+            GCO("CharacterString", "Codelists for Open Science Catalog"),
+        ),
+        GMX(
+            "fieldOfApplication",
+            GCO("CharacterString", "Open Science Catalog")
+        ),
         GMX("versionNumber", GCO("CharacterString", "1.0.0")),
         GMX("versionDate", GCO("Date", "2022-02-05")),
         GMX(
             "language",
             GMD(
-                "LanguageCode", "English", codeList="#LanguageCode", codeListValue="eng"
+                "LanguageCode",
+                "English",
+                codeList="#LanguageCode",
+                codeListValue="eng",
             ),
         ),
         GMX(
@@ -54,7 +65,11 @@ def build_codelists(
                     "codeEntry",
                     GMX(
                         "CodeDefinition",
-                        GML("identifier", f"OSC_Theme_{theme.name}", codeSpace="OSC"),
+                        GML(
+                            "identifier",
+                            f"OSC_Theme_{theme.name}",
+                            codeSpace="OSC",
+                        ),
                         GML("description", theme.description),
                         GML(
                             "descriptionReference",
@@ -89,7 +104,10 @@ def build_codelists(
                                 f"{{{nsmap['xlink']}}}href": variable.link,
                             },
                         ),
-                        **{f"{{{nsmap['gml']}}}id": f"OSC_Variable_{variable.name}"},
+                        **{
+                            f"{{{nsmap['gml']}}}id":
+                                f"OSC_Variable_{variable.name}"
+                        },
                     ),
                 )
                 for variable in variables
@@ -104,18 +122,21 @@ def build_codelists(
                         "CodeDefinition",
                         GML(
                             "identifier",
-                            f"OSC_EO_Mission_{eo_mission}",
+                            f"OSC_EO_Mission_{eo_mission.name}",
                             codeSpace="OSC",
                         ),
-                        GML("description", eo_mission),
+                        GML("description", eo_mission.name),
                         # GML(
                         #     "descriptionReference",
                         #     **{
                         #         f"{{{nsmap['xlink']}}}type": "simple",
-                        #         f"{{{nsmap['xlink']}}}href": eo_mission,
+                        #         f"{{{nsmap['xlink']}}}href": eo_mission.name,
                         #     },
                         # ),
-                        **{f"{{{nsmap['gml']}}}id": f"OSC_EO_Mission_{eo_mission}"},
+                        **{
+                            f"{{{nsmap['gml']}}}id":
+                                f"OSC_EO_Mission_{eo_mission.name}"
+                        },
                     ),
                 )
                 for eo_mission in eo_missions
