@@ -57,7 +57,7 @@ def convert_csvs(
     projects_file: TextIO,
     products_file: TextIO,
     out_dir: str,
-    catalog_url: Optional[str],
+    catalog_url: Optional[str], # unused
 ):
     variables = load_orig_variables(variables_file)
     themes = load_orig_themes(themes_file)
@@ -265,12 +265,12 @@ def set_update_timestamps(path: str, catalog: STACObject) -> Optional[datetime]:
             os.path.getmtime(item_path), tz=timezone.utc
         )
         item = STACObject.from_file(item_path)
-        item.setdefault("properties", {})["updated"] = item_updated.isoformat()
+        item.set_updated(item_updated, properties=True)
         item.save()
         updated = max(updated, item_updated)
 
     if updated:
-        catalog["updated"] = updated.isoformat()
+        catalog.set_updated(updated)
         catalog.save()
 
     return updated
@@ -303,7 +303,6 @@ def link_collections(
             variable_catalog.add_object_link(
                 theme,
                 rel="related",
-                type="application/json",
                 title=f"Theme: {theme['title']}",
             )
 
@@ -332,7 +331,6 @@ def link_collections(
         project_collection.add_object_link(
             product_collection,
             rel="child",
-            type="application/json",
             title=f"Product: {product_collection['title']}",
         )
 
@@ -343,13 +341,11 @@ def link_collections(
             product_collection.add_object_link(
                 theme,
                 rel="related",
-                type="application/json",
                 title=f"Theme: {theme['title']}",
             )
             theme.add_object_link(
                 product_collection,
                 rel="child",
-                type="application/json",
                 title=f"Product: {product_collection['title']}",
             )
 
@@ -360,13 +356,11 @@ def link_collections(
             product_collection.add_object_link(
                 variable,
                 rel="related",
-                type="application/json",
                 title=f"Variable: {variable['title']}",
             )
             variable.add_object_link(
                 product_collection,
                 rel="child",
-                type="application/json",
                 title=f"Product: {product_collection['title']}",
             )
 
@@ -377,19 +371,17 @@ def link_collections(
             product_collection.add_object_link(
                 eo_mission,
                 rel="related",
-                type="application/json",
                 title=f"EO Mission: {eo_mission['title']}",
             )
             eo_mission.add_object_link(
                 product_collection,
                 rel="child",
-                type="application/json",
                 title=f"Product: {product_collection['title']}",
             )
 
 
 def apply_keywords(catalog: STACObject):
-    keywords: List[str] = catalog.setdefault("keywords", [])
+    keywords = catalog.get("keywords", [])
     keywords.extend(
         f"theme:{name}" for name in catalog.get(THEMES_PROP, [])
     )
@@ -406,13 +398,16 @@ def apply_keywords(catalog: STACObject):
     if project := catalog.get(PROJECT_PROP):
         keywords.append(f"project:{project}")
 
+    if len(keywords) > 0:
+        catalog["keywords"] = keywords
+
 
 def build_dist(
     data_dir: str,
     out_dir: str,
     root_href: str,
-    add_iso_metadata: bool = True,
-    pretty_print: bool = True,
+    add_iso_metadata: bool = True, # unused
+    pretty_print: bool = True, # unused
     update_timestamps: bool = True,
 ):
     shutil.copytree(

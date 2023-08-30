@@ -49,8 +49,8 @@ class STACObject:
         for link in self.get_links("item"):
             yield STACObject.from_file(normpath(self.path, link["href"]))
 
-    def add_link(self, rel: str, href: str, **kwargs) -> dict:
-        link = {"rel": rel, "href": href, **kwargs}
+    def add_link(self, rel: str, href: str, type: str, **kwargs) -> dict:
+        link = {"rel": rel, "href": href, "type": type, **kwargs}
         self.values.setdefault("links", []).append(link)
 
     def add_object_link(
@@ -60,7 +60,7 @@ class STACObject:
         type: str = "application/json",
         **kwargs,
     ):
-        self.add_link(rel, relpath(other.path, self.path), **kwargs)
+        self.add_link(rel, relpath(other.path, self.path), type, **kwargs)
 
     def add_child(self, child: "STACObject"):
         self.add_object_link(
@@ -85,6 +85,12 @@ class STACObject:
         else:
             self.add_link(rel="self", href=href, type="application/json")
 
+    def set_updated(self, dt, properties = False):
+        formatted = dt.isoformat().replace('+00:00', 'Z')
+        if properties:
+            self.setdefault("properties", {})["updated"] = formatted
+        else:
+            self["updated"] = formatted
 
 def read_json(path: str) -> dict:
     with open(path) as f:
@@ -93,7 +99,7 @@ def read_json(path: str) -> dict:
 
 def write_json(path: str, values: Any, indent: int = 2):
     with open(path, "w") as f:
-        json.dump(values, f, indent=indent)
+        json.dump(values, f, indent=indent, ensure_ascii=False, allow_nan=False)
 
 
 def get_self_link(obj: dict) -> str:
