@@ -88,7 +88,7 @@ def load_orig_products(file: TextIO) -> List[Product]:
             variables=parse_list(line["Variables"]),
             themes=get_themes(line),
             access=line["Access"],
-            documentation=line["Documentation"] or None,
+            notebook=line["Notebook"],
             doi=urlparse(line["DOI"]).path[1:] if line["DOI"] else None,
             start=_parse_date(line["Start"]),
             end=_parse_date(line["End"]),
@@ -132,7 +132,6 @@ def load_orig_projects(file: TextIO) -> List[Project]:
                 line["TO"],
                 line["TO_E-mail"],
             ),
-            themes=get_themes(line),
         )
         for line in csv.DictReader(file)
     ]
@@ -143,7 +142,7 @@ def load_orig_themes(file: TextIO) -> List[Theme]:
     return [
         Theme(
             name=line["theme"],
-            description=line["description"],
+            description=line["description"] if line["description"] else "" ,
             link=line["link"],
             image=line.get("image"),
         )
@@ -167,7 +166,7 @@ def load_orig_eo_missions(file: TextIO) -> List[EOMission]:
     return [
         EOMission(
             name=line["EO_Missions"],
-            description=line["Description"],
+            description=line["Description"] if line["Description"] else "",
             link=line["Link"]
         )
         for line in csv.DictReader(file)
@@ -193,7 +192,7 @@ def validate_csvs(
         for line in csv.DictReader(missions_file)
     }
     PROJECTS = {
-        line["Project_Name"].strip(): line
+        line["Short_Name"].strip(): line
         for line in csv.DictReader(projects_file)
     }
     PRODUCTS = {
@@ -211,12 +210,6 @@ def validate_csvs(
                     f"Variable '{name}' references non-existing theme '{theme}'"
                 )
 
-    for name, project in PROJECTS.items():
-        for theme in get_themes(project):
-            if theme not in THEMES:
-                issues.append(
-                    f"Project '{name}' references non-existing theme '{theme}'"
-                )
 
     for name, product in PRODUCTS.items():
         project = product["Project"]

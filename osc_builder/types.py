@@ -22,7 +22,7 @@ class Product:
     variables: List[str]
     themes: List[str]
     access: str
-    documentation: Optional[str] = None
+    notebook: str
     doi: Optional[str] = None
     start: Optional[datetime] = None
     end: Optional[datetime] = None
@@ -56,14 +56,13 @@ class Project:
     start: datetime
     end: datetime
     technical_officer: Contact
-    themes: List[str]
 
 
 @dataclass
 class Theme:
     name: str
     description: str
-    link: str
+    link: Optional[str]
     image: Optional[str] = None
 
 
@@ -71,7 +70,7 @@ class Theme:
 class Variable:
     name: str
     description: str
-    link: str
+    link: Optional[str]
     themes: List[str]
 
     @classmethod
@@ -85,5 +84,5 @@ class Variable:
 @dataclass
 class EOMission:
     name: str
-    description: str
-    link: str
+    description: Optional[str]
+    link: Optional[str]

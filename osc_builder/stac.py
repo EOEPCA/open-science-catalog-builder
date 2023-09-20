@@ -149,12 +149,12 @@ class CollectionOSCExtension(OSCExtension[pystac.Collection]):
                     title="Access",
                 )
             )
-        if product.documentation:
+        if product.notebook:
             self.collection.add_link(
                 pystac.Link(
                     pystac.RelType.VIA,
-                    product.documentation,
-                    title="Documentation",
+                    product.notebook,
+                    title="Notebook files",
                 )
             )
 
@@ -165,12 +165,11 @@ class CollectionOSCExtension(OSCExtension[pystac.Collection]):
                 "description": project.description,
                 NAME_PROP: project.name,
                 STATUS_PROP: project.status.value.lower(),
-                THEMES_PROP: project.themes,
-                TYPE_PROP: "project",
+                TYPE_PROP: "Project",
                 "contacts": [
                     {
                         "name": project.technical_officer.name,
-                        "role": "technical_officer",
+                        "role": "Scientific Coordinator",
                         "emails": [
                             {
                                 "value": project.technical_officer.e_mail,
@@ -181,7 +180,6 @@ class CollectionOSCExtension(OSCExtension[pystac.Collection]):
                 + [
                     {
                         "name": consortium_member,
-                        "role": "consortium_member",
                     }
                     for consortium_member in project.consortium
                 ],
@@ -274,13 +272,13 @@ def collection_from_product(product: Product) -> pystac.Collection:
     return collection
 
 
-def collection_from_project(project: Project) -> pystac.Item:
+def collection_from_project(project: Project) -> pystac.Collection:
     collection = pystac.Collection(
-        slugify(project.name),
+        slugify(project.title),
         project.description,
         extent=pystac.Extent(
             # todo: ESA should provide this
-            pystac.SpatialExtent([-180.0, -90.0, 180.0, 90.0]),
+            pystac.SpatialExtent([-24.433594, -36.315125, 41.132813, 70.377854]),
             pystac.TemporalExtent([[project.start, project.end]]),
         ),
         title=project.title,
@@ -314,9 +312,9 @@ def catalog_from_theme(theme: Theme) -> pystac.Catalog:
     catalog.add_link(
         pystac.Link(
             rel=pystac.RelType.VIA,
-            target=theme.link,
+            target=theme.link if theme.link is not None else f"https://eo4society.esa.int/search/{theme.name}",
             media_type="text/html",
-            title="Description",
+            title="Website",
         )
     )
     return catalog
@@ -329,14 +327,15 @@ def catalog_from_variable(variable: Variable) -> pystac.Catalog:
         title=variable.name,
     )
     add_theme_themes(catalog, variable.themes)
-    catalog.add_link(
-        pystac.Link(
-            rel=pystac.RelType.VIA,
-            target=variable.link,
-            media_type="text/html",
-            title="Description",
+    if variable.link:
+        catalog.add_link(
+            pystac.Link(
+                rel=pystac.RelType.VIA,
+                target=variable.link,
+                media_type="text/html",
+                title="Description",
+            )
         )
-    )
     return catalog
 
 

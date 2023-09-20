@@ -91,9 +91,7 @@ def convert_csvs(
         "Geoscience, climate and environmental variables",
         "Variables",
     )
-    processes_catalog = pystac.Catalog(
-        "processes", "Processes for reproducible science", "Processes"
-    )
+
     eo_missions_catalog = pystac.Catalog(
         "eo-missions",
         "Earth Observation Satellite Missions by ESA",
@@ -107,7 +105,6 @@ def convert_csvs(
     root.add_child(projects_catalog)
     root.add_child(themes_catalog)
     root.add_child(variables_catalog)
-    root.add_child(processes_catalog)
     root.add_child(eo_missions_catalog)
     root.add_child(products_catalog)
 
