@@ -1,8 +1,8 @@
-from datetime import datetime, timezone
 import json
 import os
 import os.path
 import shutil
+from datetime import datetime, timezone
 from typing import TextIO, Optional, Iterable
 from urllib.parse import urlparse
 
@@ -12,8 +12,7 @@ import pystac.link
 import pystac.utils
 from slugify import slugify
 
-from .codelist import build_codelists
-
+from .metrics import caclulate_metrics
 # from .iso import generate_product_metadata, generate_project_metadata
 from .origcsv import (
     load_orig_products,
@@ -22,7 +21,6 @@ from .origcsv import (
     load_orig_variables,
     load_orig_eo_missions,
 )
-from .metrics import caclulate_metrics
 from .stac import (
     PROJECT_PROP,
     MISSIONS_PROP,
@@ -39,7 +37,6 @@ from .stac import (
     get_eo_mission_id,
     FakeHTTPStacIO,
 )
-from .types import Theme, Variable, EOMission
 
 # to fix https://github.com/stac-utils/pystac/issues/1112
 if "related" not in pystac.link.HIERARCHICAL_LINKS:
@@ -70,7 +67,18 @@ def convert_csvs(
     # set root structure
     root = pystac.Catalog(
         "osc_hydro",
-        "A catalog of publicly available geoscience products, datasets and resources developed in the frame of scientific research Projects funded by ESA EO (Earth Observation)",
+        """#### Objectives
+        4DHydro is a response to the Invitation to Tender (ITT) of the [European Space Agency](https://www.esa.int/) with reference number ESA AO/1-11298/22/I-EFin July 2022.
+        It aims at: 
+        - To  perform a thorough assessment of the uncertainty of existing EO and LSM/HM data sets (Tier 1) related to key tECVs. 
+        - To generate improved tECVS datasets at 1 km spatial resolution in the selected study areas (Tier 2).  
+        - To perform targeted science cases to demonstrate the synchronization of EO products and LSM/HMs models for improved predictability of hydrology system at higher spatial and temporal resolutions. For example:
+            1. To determine the water balance skill of the existing EO products if used as drivers of LSM/HMs at different spatial and temporal scales 
+            2. To determine the scalability of the selected LSM/HMs
+            3. To determine under existing conditions what is the optimal spatial resolution of the tECVs from a computational/efficiency perspective.
+        - To develop tools to enhance the ability of end-users and decision-makers to extract and manipulate existing and future reanalysis and climate data sets. These tools should help users to better understand and characterize key tECVs at the scales suitable for decision-making.
+        - To derive a solid scientific basis of the state-of-the-art EO retrieval systems, as well as land surface modelling capabilities that are needed to assist the EU Destination Earth initiative.
+        """,
         "4DHydro's Open Science Catalog",
     )
     projects_catalog = pystac.Catalog(
@@ -83,7 +91,7 @@ def convert_csvs(
     )
     themes_catalog = pystac.Catalog(
         "themes",
-        "Earth Science topics related to hydrology",
+        "Earth Science topics related to this project",
         "Themes",
     )
     variables_catalog = pystac.Catalog(
@@ -94,7 +102,7 @@ def convert_csvs(
 
     eo_missions_catalog = pystac.Catalog(
         "eo-missions",
-        "Earth Observation Satellite Missions by ESA",
+        "Earth Observation Satellite Missions",
         "EO Missions",
     )
 
