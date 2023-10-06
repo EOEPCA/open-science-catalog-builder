@@ -2,6 +2,7 @@ import json
 import os.path
 from typing import Any, Optional, Iterable, List
 from dataclasses import dataclass
+from datetime import datetime
 from urllib.parse import urljoin, urlparse
 
 
@@ -26,8 +27,8 @@ class STACObject:
     def from_file(cls, path):
         return cls(path, read_json(path))
 
-    def save(self, path: Optional[str] = None):
-        write_json(path or self.path, self.values)
+    def save(self, path: Optional[str] = None, indent: int = 2):
+        write_json(path or self.path, self.values, indent)
 
     def get_links(self, rel: Optional[str] = None) -> List[dict]:
         links = self.get("links", [])
@@ -85,21 +86,22 @@ class STACObject:
         else:
             self.add_link(rel="self", href=href, type="application/json")
 
-    def set_updated(self, dt, properties = False):
-        formatted = dt.isoformat().replace('+00:00', 'Z')
+    def set_updated(self, dt: datetime, properties: bool = False):
+        formatted = dt.isoformat().replace("+00:00", "Z")
         if properties:
             self.setdefault("properties", {})["updated"] = formatted
         else:
             self["updated"] = formatted
+
 
 def read_json(path: str) -> dict:
     with open(path) as f:
         return json.load(f)
 
 
-def write_json(path: str, values: Any, indent: int = 2):
+def write_json(path: str, obj: Any, indent: int = 2):
     with open(path, "w") as f:
-        json.dump(values, f, indent=indent, ensure_ascii=False, allow_nan=False)
+        json.dump(obj, f, indent=indent, ensure_ascii=False, allow_nan=False)
 
 
 def get_self_link(obj: dict) -> str:
@@ -121,7 +123,9 @@ def is_absolute_href(href: str) -> bool:
     return parsed.scheme != "" or os.path.isabs(parsed.path)
 
 
-def make_absolute_hrefs(self: STACObject, parent_href: str, path: str):
+def make_absolute_hrefs(
+    self: STACObject, parent_href: str, path: str, indent: int = 2
+):
     self_href = urljoin(parent_href, path)
 
     for child_link in self.get_links("child"):
@@ -132,6 +136,7 @@ def make_absolute_hrefs(self: STACObject, parent_href: str, path: str):
             STACObject.from_file(normpath(self.path, child_link["href"])),
             self_href,
             child_link["href"],
+            indent,
         )
 
     for item_link in self.get_links("item"):
@@ -142,6 +147,7 @@ def make_absolute_hrefs(self: STACObject, parent_href: str, path: str):
             STACObject.from_file(normpath(self.path, item_link["href"])),
             self_href,
             item_link["href"],
+            indent,
         )
 
     for link in self.get_links():
@@ -153,4 +159,4 @@ def make_absolute_hrefs(self: STACObject, parent_href: str, path: str):
             asset["href"] = urljoin(self_href, asset["href"])
 
     self.set_self_href(self_href)
-    self.save()
+    self.save(indent=indent)

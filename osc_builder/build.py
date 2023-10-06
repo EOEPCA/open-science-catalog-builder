@@ -57,7 +57,6 @@ def convert_csvs(
     projects_file: TextIO,
     products_file: TextIO,
     out_dir: str,
-    catalog_url: Optional[str], # unused
 ):
     variables = load_orig_variables(variables_file)
     themes = load_orig_themes(themes_file)
@@ -434,6 +433,8 @@ def build_dist(
         eo_missions,
     )
 
+    indent = 2 if pretty_print else None
+
     # Apply keywords
     catalogs = chain(
         products,
@@ -444,9 +445,9 @@ def build_dist(
     )
     for catalog in catalogs:
         apply_keywords(catalog)
-        catalog.save()
+        catalog.save(indent=indent)
 
-    make_absolute_hrefs(root, root_href, "catalog.json")
+    make_absolute_hrefs(root, root_href, "catalog.json", indent)
 
 
 def build_metrics(

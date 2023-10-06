@@ -22,7 +22,6 @@ ENCODING = "ISO-8859-1"
 @click.argument("projects_file", type=click.File("r", encoding=ENCODING))
 @click.argument("products_file", type=click.File("r", encoding=ENCODING))
 @click.option("--out-dir", "-o", default="data", type=str)
-@click.option("--catalog-url", "-c", default="", type=str)
 @click.option("--validate-csvs/--no-validate-csvs", default=True)
 def convert(
     variables_file: TextIO,
@@ -31,7 +30,6 @@ def convert(
     projects_file: TextIO,
     products_file: TextIO,
     out_dir: str,
-    catalog_url: str,
     validate_csvs: bool,
 ):
     if validate_csvs:
@@ -63,7 +61,6 @@ def convert(
         projects_file,
         products_file,
         out_dir,
-        catalog_url,
     )
 
 
