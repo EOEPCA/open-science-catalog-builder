@@ -75,21 +75,18 @@ def validate(data_dir: str):
 @click.option("--out-dir", "-o", default="dist", type=str)
 @click.option("--root-href", "-r", default="", type=str)
 @click.option("--pretty-print/--no-pretty-print", default=True)
-@click.option("--add-iso/--no-add-iso", default=True)
 @click.option("--update-timestamps/--no-update-timestamps", default=True)
 def build(
     data_dir: str,
     out_dir: str,
     pretty_print: bool,
     root_href: str,
-    add_iso: bool,
     update_timestamps: bool,
 ):
     build_dist(
         data_dir,
         out_dir,
         root_href,
-        add_iso,
         pretty_print,
         update_timestamps,
     )

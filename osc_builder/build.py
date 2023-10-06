@@ -405,8 +405,7 @@ def build_dist(
     data_dir: str,
     out_dir: str,
     root_href: str,
-    add_iso_metadata: bool = True, # unused
-    pretty_print: bool = True, # unused
+    pretty_print: bool = True,
     update_timestamps: bool = True,
 ):
     shutil.copytree(
