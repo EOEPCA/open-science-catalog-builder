@@ -76,7 +76,7 @@ def load_orig_products(file: TextIO) -> List[Product]:
             title=line["Product"],
             description=line["Description"],
             project=line["Project"],
-            variables=parse_list(line["Variables"]),
+            variables=parse_list(line["Variable"]),
             themes=get_themes(line),
             access=line["Access"],
             documentation=line["Documentation"] or None,
@@ -155,7 +155,7 @@ def load_orig_variables(file: TextIO) -> List[Variable]:
 def load_orig_eo_missions(file: TextIO) -> List[EOMission]:
     return [
         EOMission(
-            name=line["EO_Missions"],
+            name=line["EO-Mission"],
             description=line["Description"],
             link=line["Link"]
         )
@@ -178,7 +178,7 @@ def validate_csvs(
         for line in csv.DictReader(variables_file)
     }
     MISSIONS = {
-        line["EO_Missions"].strip(): line
+        line["EO-Mission"].strip(): line
         for line in csv.DictReader(missions_file)
     }
     PROJECTS = {
@@ -220,7 +220,7 @@ def validate_csvs(
                     f"Product '{name}' references non-existing theme '{theme}'"
                 )
 
-        for variable in parse_list(product["Variables"]):
+        for variable in parse_list(product["Variable"]):
             if variable not in VARIABLES:
                 issues.append(
                     f"Product '{name}' references non-existing variable '{variable}'"
