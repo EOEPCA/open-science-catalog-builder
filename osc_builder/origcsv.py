@@ -67,15 +67,22 @@ def parse_date(value: str, is_max: bool) -> Optional[datetime]:
     )
 
 
-def load_orig_products(file: TextIO) -> List[Product]:
-    products = [
-        Product(
+def load_orig_products(file: TextIO, projects: List[Project]) -> List[Product]:
+    products = []
+    for line in csv.DictReader(file, delimiter=";"):
+        project = None
+        for p in projects:
+            if p.name == line["Project"]:
+                project = p
+                break
+        
+        product = Product(
             id=line["Short_Name"],
             status=Status(line["Status"].upper()),
             website=line.get("Website"),
             title=line["Product"],
             description=line["Description"],
-            project=line["Project"],
+            project=project,
             variables=parse_list(line["Variable"]),
             themes=get_themes(line),
             access=line["Access"],
@@ -91,8 +98,8 @@ def load_orig_products(file: TextIO) -> List[Product]:
             keywords=parse_list(line["Keywords"]),
             standard_name=line.get("Standard_Name")
         )
-        for line in csv.DictReader(file)
-    ]
+        products.append(product)
+    
     return products
 
 
@@ -186,7 +193,7 @@ def validate_csvs(
         for line in csv.DictReader(projects_file)
     }
     PRODUCTS = {
-        line["Product"].strip(): line for line in csv.DictReader(products_file)
+        line["Product"].strip(): line for line in csv.DictReader(products_file, delimiter=";")
     }
 
     issues = []

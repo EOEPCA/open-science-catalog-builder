@@ -103,7 +103,7 @@ class CollectionOSCExtension(OSCExtension[pystac.Collection]):
                 "description": product.description,
                 THEMES_PROP: product.themes,
                 MISSIONS_PROP: product.eo_missions,
-                PROJECT_PROP: product.project,
+                PROJECT_PROP: product.project.id if product.project else "",
                 VARIABLES_PROP: product.variables,
                 STATUS_PROP: product.status.value.lower(),
                 TYPE_PROP: "product",
@@ -293,7 +293,7 @@ def collection_from_product(product: Product) -> pystac.Collection:
 
 def collection_from_project(project: Project) -> pystac.Item:
     collection = pystac.Collection(
-        slugify(project.name),
+        slugify(project.id),
         project.description,
         extent=pystac.Extent(
             # todo: ESA should provide this
