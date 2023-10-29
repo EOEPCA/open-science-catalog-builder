@@ -48,6 +48,7 @@ def convert(
             for issue in issues:
                 print(issue)
             print(f"Found {len(issues)} issues")
+            raise Exception("multiples issues found please fill csv in with correct rules")
         else:
             print("No issues found")
 

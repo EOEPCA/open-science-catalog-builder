@@ -11,6 +11,15 @@ from slugify import slugify
 from .types import Contact, Product, Project, Status, Theme, Variable, EOMission
 from .util import parse_decimal_date, get_depth
 
+def get_metadata_column() -> dict:
+    return {
+        "EO Missions": 3,
+        "Products": 24,
+        "Projects": 10,
+        "Themes": 4,
+        "Variables": 4,
+
+    }
 
 def get_themes(obj: dict) -> List[str]:
     return [obj[f"Theme{i}"] for i in range(1, 4) if obj[f"Theme{i}"]]
@@ -200,6 +209,51 @@ def validate_csvs(
     }
 
     issues = []
+
+    products_file.seek(0)
+    products_file_reader = csv.reader(products_file)
+    product_column_names = next(products_file_reader)
+    if len(product_column_names) != get_metadata_column()["Products"]:
+        issues.append(
+            f"""Products csv file is corrupted, this csv must have {get_metadata_column()['Products']}
+                 columns but {len(product_column_names)} got. """
+        )
+
+    projects_file.seek(0)
+    project_file_reader = csv.reader(projects_file)
+    project_column_names = next(project_file_reader)
+    if len(project_column_names) != get_metadata_column()["Projects"]:
+        issues.append(
+            f"""Projects csv file is corrupted, this csv must have {get_metadata_column()['Projects']} columns
+            but {len(project_column_names)} got. """
+        )
+
+    variables_file.seek(0)
+    variables_file_reader = csv.reader(variables_file)
+    variables_column_names = next(variables_file_reader)
+    if len(variables_column_names) != get_metadata_column()["Variables"]:
+        issues.append(
+            f"""Variables csv file is corrupted, this csv have {get_metadata_column()['Variables']} columns
+            but {len(variables_column_names)} got. """
+        )
+
+    themes_file.seek(0)
+    themes_file_reader = csv.reader(themes_file)
+    themes_column_names = next(themes_file_reader)
+    if len(themes_column_names) != get_metadata_column()["Themes"]:
+        issues.append(
+            f"""Themes csv file is corrupted, this csv have {get_metadata_column()['Themes']} columns 
+            but {len(themes_column_names)} got. """
+        )
+
+    missions_file.seek(0)
+    missions_file_reader = csv.reader(missions_file)
+    missions_column_names = next(missions_file_reader)
+    if len(missions_column_names) != get_metadata_column()["EO Missions"]:
+        issues.append(
+            f"""Eo Missions csv file is corrupted, this csv have {get_metadata_column()['EO Missions']} columns
+            but {len(missions_column_names)} got. """
+        )
 
     for name, variable in VARIABLES.items():
         for theme in parse_list(
