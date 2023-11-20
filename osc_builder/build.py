@@ -67,17 +67,13 @@ def convert_csvs(
     # set root structure
     root = pystac.Catalog(
         "osc_hydro",
-        """#### Objectives
-        4DHydro is a response to the Invitation to Tender (ITT) of the [European Space Agency](https://www.esa.int/) with reference number ESA AO/1-11298/22/I-EFin July 2022.
+        """4DHydro is a response to the Invitation to Tender (ITT) of the European Space Agency with reference number ESA AO/1-11298/22/I-EFin July 2022.
         It aims at: 
-        - To  perform a thorough assessment of the uncertainty of existing EO and LSM/HM data sets (Tier 1) related to key tECVs. 
-        - To generate improved tECVS datasets at 1 km spatial resolution in the selected study areas (Tier 2).  
-        - To perform targeted science cases to demonstrate the synchronization of EO products and LSM/HMs models for improved predictability of hydrology system at higher spatial and temporal resolutions. For example:
-            1. To determine the water balance skill of the existing EO products if used as drivers of LSM/HMs at different spatial and temporal scales 
-            2. To determine the scalability of the selected LSM/HMs
-            3. To determine under existing conditions what is the optimal spatial resolution of the tECVs from a computational/efficiency perspective.
-        - To develop tools to enhance the ability of end-users and decision-makers to extract and manipulate existing and future reanalysis and climate data sets. These tools should help users to better understand and characterize key tECVs at the scales suitable for decision-making.
-        - To derive a solid scientific basis of the state-of-the-art EO retrieval systems, as well as land surface modelling capabilities that are needed to assist the EU Destination Earth initiative.
+          To  perform a thorough assessment of the uncertainty of existing EO and LSM/HM data sets (Tier 1) related to key tECVs. 
+          To generate improved tECVS datasets at 1 km spatial resolution in the selected study areas (Tier 2).  
+          To perform targeted science cases to demonstrate the synchronization of EO products and LSM/HMs models for improved predictability of hydrology system at higher spatial and temporal resolutions.
+          To develop tools to enhance the ability of end-users and decision-makers to extract and manipulate existing and future reanalysis and climate data sets. 
+          To derive a solid scientific basis of the state-of-the-art EO retrieval systems, as well as land surface modelling capabilities that are needed to assist the EU Destination Earth initiative.
         """,
         "4DHydro's Open Science Catalog",
     )
@@ -420,63 +416,6 @@ def build_dist(
     if update_timestamps:
         set_update_timestamps(root, None)
 
-    # with open(os.path.join(data_dir, assets["themes"].href)) as f:
-    #     themes = [Theme(**theme) for theme in json.load(f)]
-    # with open(os.path.join(data_dir, assets["variables"].href)) as f:
-    #     variables = [Variable.from_raw(**variable) for variable in json.load(f)]
-    # with open(os.path.join(data_dir, assets["eo-missions"].href)) as f:
-    #     eo_missions = [EOMission(**eo_mission) for eo_mission in json.load(f)]
-
-    # Handle ISO metadata
-    # if add_iso_metadata:
-    #     for project_collection in root.get_children():
-    #         # create and store ISO metadata for the project
-    #         iso_xml = generate_project_metadata(project_collection)
-    #         href = os.path.join(
-    #             out_dir,
-    #             project_collection.id,
-    #             "iso.xml",
-    #         )
-    #         with open(href, "w") as f:
-    #             f.write(iso_xml)
-    #         project_collection.add_asset(
-    #             "iso-metadata",
-    #             pystac.Asset(
-    #                 "./iso.xml",
-    #                 roles=["metadata"],
-    #                 media_type="application/xml",
-    #             ),
-    #         )
-    #         make_collection_assets_absolute(project_collection)
-
-    #         # create and store ISO metadata for the products
-    #         for product_collection in project_collection.get_children():
-    #             iso_xml = generate_product_metadata(product_collection)
-    #             href = os.path.join(
-    #                 out_dir,
-    #                 project_collection.id,
-    #                 product_collection.id,
-    #                 "iso.xml",
-    #             )
-    #             with open(href, "w") as f:
-    #                 f.write(iso_xml)
-    #             product_collection.add_asset(
-    #                 "iso-metadata",
-    #                 pystac.Asset(
-    #                     "./iso.xml",
-    #                     roles=["metadata"],
-    #                     media_type="application/xml",
-    #                 ),
-    #             )
-    #             make_collection_assets_absolute(project_collection)
-
-    # ensure that all data items beneath a product reference the product
-    # collection.
-    # for project_collection in root.get_children():
-    #     for product_collection in project_collection.get_children():
-    #         for item in product_collection.get_all_items():
-    #             item.set_collection(product_collection)
-
     link_collections(
         root.get_child("products").get_children(),
         root.get_child("projects").get_children(),
@@ -498,42 +437,6 @@ def build_dist(
     for catalog in catalogs:
         apply_keywords(catalog)
 
-    # create and store metrics for the root
-    # metrics = build_metrics(
-    #     "OSC-Catalog",
-    #     root,
-    #     themes,
-    #     variables,
-    #     eo_missions,
-    # )
-    # with open(os.path.join(out_dir, "metrics.json"), "w") as f:
-    #     json.dump(metrics, f, indent=2 if pretty_print else None)
-
-    # root.add_asset(
-    #     "metrics",
-    #     pystac.Asset(
-    #         "./metrics.json", roles=["metadata"], media_type="application/json"
-    #     ),
-    # )
-
-    # create and store codelists
-    # tree = build_codelists(themes, variables, eo_missions)
-    # tree.write(
-    #     os.path.join(out_dir, "codelists.xml"), pretty_print=pretty_print
-    # )
-    # root.add_asset(
-    #     "codelists",
-    #     pystac.Asset(
-    #         "./codelists.xml", roles=["metadata"], media_type="application/xml"
-    #     ),
-    # )
-
-    # make all collection assets absolute
-    # make_collection_assets_absolute(root)
-
-    # final href adjustments
-    # root.make_all_asset_hrefs_absolute()
-    # root.normalize_and_save(out_dir, pystac.CatalogType.SELF_CONTAINED)
     root.save(pystac.CatalogType.SELF_CONTAINED, dest_href=out_dir)
 
 
