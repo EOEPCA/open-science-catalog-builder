@@ -15,7 +15,7 @@ from pystac.extensions.base import (
 import pystac.stac_io
 import pystac.link
 
-from .types import Product, Project, Theme, Variable, EOMission
+from .types_ import Product, Project, Theme, Variable, EOMission, ProductSegmentation
 
 
 mimetypes.add_type("image/webp", ".webp")
@@ -203,6 +203,30 @@ class CollectionOSCExtension(OSCExtension[pystac.Collection]):
                 )
             )
 
+    def apply_product_segmentation(self, product_segmentation: ProductSegmentation):
+        self.properties.update(
+            {
+                "title": product_segmentation.title,
+                "description": product_segmentation.title,
+                TYPE_PROP: "collection",
+                MISSIONS_PROP: product_segmentation.eo_missions,
+                PROJECT_PROP: product_segmentation.project,
+                VARIABLES_PROP: product_segmentation.variables,
+                THEMES_PROP: product_segmentation.themes,
+                REGION_PROP: product_segmentation.region,
+            }
+        )
+        common = pystac.CommonMetadata(self.collection)
+        if isinstance(product_segmentation.released, date):
+            common.created = datetime.combine(
+                product_segmentation.released, time.min, timezone.utc
+            )
+        if product_segmentation.start:
+            common.start_datetime = product_segmentation.start
+        if product_segmentation.end:
+            common.end_datetime = product_segmentation.end
+
+
 
 class ItemOSCExtension(OSCExtension[pystac.Item]):
     pass
@@ -269,6 +293,28 @@ def collection_from_product(product: Product) -> pystac.Collection:
             collection, True
         )
         sci_ext.apply(product.doi)
+    return collection
+
+def collection_from_segmentation_product(product_segmentation: ProductSegmentation) -> pystac.Collection:
+    """Create a pystac.Collection from a given Product collection
+    Args:
+        product_segmentation (ProductSegmentation): the product to convert
+    Returns:
+        pystac.Collection: the created collection
+    """
+    slug = slugify(product_segmentation.title)
+    collection = pystac.Collection(
+        slug,
+        product_segmentation.title,
+        extent=pystac.Extent(
+            pystac.SpatialExtent([-180.0, -90.0, 180.0, 90.0]),
+            pystac.TemporalExtent([[product_segmentation.start, product_segmentation.end]]),
+        ),
+        title=product_segmentation.title,
+    )
+
+    osc_ext: CollectionOSCExtension = OSCExtension.ext(collection, True)
+    osc_ext.apply_product_segmentation(product_segmentation)
     return collection
 
 

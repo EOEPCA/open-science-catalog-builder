@@ -27,6 +27,7 @@ from .stac import (
     VARIABLES_PROP,
     THEMES_PROP,
     collection_from_product,
+    collection_from_segmentation_product,
     collection_from_project,
     catalog_from_theme,
     catalog_from_variable,
@@ -37,6 +38,8 @@ from .stac import (
     get_eo_mission_id,
     FakeHTTPStacIO,
 )
+from .util import get_product_segmentation
+import time
 
 # to fix https://github.com/stac-utils/pystac/issues/1112
 if "related" not in pystac.link.HIERARCHICAL_LINKS:
@@ -50,18 +53,20 @@ if "related" not in pystac.link.HIERARCHICAL_LINKS:
 
 
 def convert_csvs(
-    variables_file: TextIO,
-    themes_file: TextIO,
-    eo_missions_file: TextIO,
-    projects_file: TextIO,
-    products_file: TextIO,
-    out_dir: str,
-    catalog_url: Optional[str],
+        variables_file: TextIO,
+        themes_file: TextIO,
+        eo_missions_file: TextIO,
+        projects_file: TextIO,
+        products_file: TextIO,
+        out_dir: str,
+        catalog_url: Optional[str],
 ):
+    start_time = time.time()
     variables = load_orig_variables(variables_file)
     themes = load_orig_themes(themes_file)
     projects = load_orig_projects(projects_file)
     products = load_orig_products(products_file)
+    segmentation_products = get_product_segmentation(products)
     eo_missions = load_orig_eo_missions(eo_missions_file)
 
     # set root structure
@@ -138,11 +143,17 @@ def convert_csvs(
     )
     products_catalog.add_children(
         sorted(
-            (collection_from_product(product) for product in products),
+            (collection_from_segmentation_product(parent) for parent in segmentation_products),
             key=lambda collection: collection.id,
         )
     )
 
+    for line_product in products:
+        parent: list[pystac.Catalog] = list(filter(lambda x: x.title == line_product.collection, products_catalog.get_children()))
+        if len(parent) != 0:
+            parent[0].add_child(collection_from_product(line_product))
+        else:
+            products_catalog.add_child(collection_from_product(line_product))
     # save catalog
     root.normalize_and_save(out_dir, pystac.CatalogType.SELF_CONTAINED)
 
@@ -158,6 +169,9 @@ def convert_csvs(
                     os.path.join("images", link.href),
                     out_path,
                 )
+
+    print(f"--- {((time.time() - start_time)/60)} minutes ---")
+    print("-------------END CONVERT --------------")
 
 
 def validate_project(
@@ -351,7 +365,7 @@ def link_collections(
                 title=f"Project: {project_collection.title}",
             )
         )
-        project_collection.add_child(product_collection, keep_parent=True)
+        project_collection.add_child(product_collection, set_parent=True)
 
         # product -> themes
         for theme_name in get_theme_names(product_collection):
@@ -364,7 +378,7 @@ def link_collections(
                     title=f"Theme: {theme_catalog.title}",
                 )
             )
-            theme_catalog.add_child(product_collection, keep_parent=True)
+            theme_catalog.add_child(product_collection, set_parent=True)
 
         # product -> variables
         for variable_name in product_collection.extra_fields[VARIABLES_PROP]:
@@ -377,7 +391,7 @@ def link_collections(
                     title=f"Variable: {variable_catalog.title}",
                 )
             )
-            variable_catalog.add_child(product_collection, keep_parent=True)
+            variable_catalog.add_child(product_collection, set_parent=True)
 
         # product -> eo mission
         for eo_mission in product_collection.extra_fields[MISSIONS_PROP]:
@@ -390,7 +404,7 @@ def link_collections(
                     title=f"EO Mission: {eo_mission_catalog.title}",
                 )
             )
-            eo_mission_catalog.add_child(product_collection, keep_parent=True)
+            eo_mission_catalog.add_child(product_collection, set_parent=True)
 
 
 # TODO: apply keywords
@@ -405,6 +419,7 @@ def build_dist(
     pretty_print: bool = True,
     update_timestamps: bool = True,
 ):
+    start_time = time.time()
     shutil.copytree(
         data_dir,
         out_dir,
@@ -438,10 +453,11 @@ def build_dist(
         apply_keywords(catalog)
 
     root.save(pystac.CatalogType.SELF_CONTAINED, dest_href=out_dir)
+    print(f"--- {((time.time() - start_time) / 60)} minutes ---")
+    print("-------------END BUILD --------------")
 
 
-def build_metrics(
-    data_dir: str,
+def build_metrics(    data_dir: str,
     metrics_file_name: str,
     add_to_root: bool,
     pretty_print: bool = True,

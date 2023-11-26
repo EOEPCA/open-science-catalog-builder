@@ -7,7 +7,7 @@ from datetime import datetime
 import pystac
 from slugify import slugify
 
-from .types import Product, Project, Theme, Variable, EOMission
+from .types_ import Product, Project, Theme, Variable, EOMission
 from .stac import (
     get_theme_id,
     get_variable_id,

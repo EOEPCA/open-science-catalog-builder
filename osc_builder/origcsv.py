@@ -8,13 +8,13 @@ from pygeoif import geometry
 from dateutil.parser import parse as parse_datetime
 from slugify import slugify
 
-from .types import Contact, Product, Project, Status, Theme, Variable, EOMission
+from .types_ import Contact, Product, Project, Status, Theme, Variable, EOMission
 from .util import parse_decimal_date, get_depth
 
 def get_metadata_column() -> dict:
     return {
         "EO Missions": 3,
-        "Products": 24,
+        "Products": 25,
         "Projects": 10,
         "Themes": 4,
         "Variables": 4,
@@ -111,6 +111,7 @@ def load_orig_products(file: TextIO) -> List[Product]:
             coordinate=line["Coordinate"] or None,
             spatial_resolution=line["Spatial Resolution"] or None,
             temporal_resolution=line["Temporal Resolution"] or None,
+            collection=line["Collection"] or None,
         )
         for line in csv.DictReader(file)
     ]
