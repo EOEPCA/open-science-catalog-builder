@@ -273,6 +273,11 @@ def validate_csvs(
                 f"Product '{name}' references non-existing project '{project}'"
             )
 
+        if product["Collection"] is None or product["Collection"] == '':
+            issues.append(
+                f"Product '{name}' has not collection linked please add collection for the product"
+            )
+
         for theme in get_themes(product):
             if theme not in THEMES:
                 issues.append(
