@@ -128,16 +128,8 @@ def load_orig_projects(file: TextIO) -> List[Project]:
             description=line["Short_Description"],
             website=line["Website"],
             consortium=parse_list(line["Consortium"], ","),
-            start=datetime.combine(
-                parse_datetime(line["Start_Date_Project"]).date(),
-                time.min,
-                tzinfo=timezone.utc,
-            ),
-            end=datetime.combine(
-                parse_datetime(line["End_Date_Project"]).date(),
-                time.max.replace(microsecond=0),
-                tzinfo=timezone.utc,
-            ),
+            start=_parse_date(line["Start_Date_Project"]),
+            end=_parse_date(line["End_Date_Project"]),
             technical_officer=Contact(
                 line["TO"],
                 line["TO_E-mail"],
