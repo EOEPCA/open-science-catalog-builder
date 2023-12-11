@@ -14,7 +14,7 @@ from .util import parse_decimal_date, get_depth
 def get_metadata_column() -> dict:
     return {
         "EO Missions": 3,
-        "Products": 25,
+        "Products": 26,
         "Projects": 10,
         "Themes": 4,
         "Variables": 4,
