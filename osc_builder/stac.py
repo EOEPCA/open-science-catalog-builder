@@ -52,6 +52,7 @@ TEMPORAL_RESOLUTION_NAME_PROP = f"{PREFIX}temporal_resolution"
 OSC_SCHEME_THEMES = "https://github.com/stac-extensions/osc#theme"
 OSC_SCHEME_VARIABLES = "https://github.com/stac-extensions/osc#variable"
 OSC_SCHEME_MISSIONS = "https://github.com/stac-extensions/osc#eo-mission"
+PROJECT_NAME_REFERER = "4dHydro"
 
 
 class OSCExtension(
@@ -135,7 +136,7 @@ class CollectionOSCExtension(OSCExtension[pystac.Collection]):
         if product.end:
             common.end_datetime = product.end
 
-        if product.website:
+        if product.website and product.project != PROJECT_NAME_REFERER:
             self.collection.add_link(
                 pystac.Link(
                     pystac.RelType.VIA, product.website, title="Website"
@@ -157,6 +158,14 @@ class CollectionOSCExtension(OSCExtension[pystac.Collection]):
                     title="Notebook files",
                 )
             )
+        if product.provider:
+            self.collection.providers = [
+                pystac.provider.Provider(
+                    name=product.provider,
+                    roles=[pystac.provider.ProviderRole.HOST],
+                    url="https://4dhydro.eu/consortium/"
+                )
+            ]
 
     def apply_project(self, project: Project):
         self.properties.update(
@@ -307,7 +316,11 @@ def collection_from_segmentation_product(product_segmentation: ProductSegmentati
         slug,
         product_segmentation.title,
         extent=pystac.Extent(
-            pystac.SpatialExtent([-180.0, -90.0, 180.0, 90.0]),
+            pystac.SpatialExtent(
+                product_segmentation.geometry.bounds
+                if product_segmentation.geometry
+                else [-180.0, -90.0, 180.0, 90.0]
+            ),
             pystac.TemporalExtent([[product_segmentation.start, product_segmentation.end]]),
         ),
         title=product_segmentation.title,

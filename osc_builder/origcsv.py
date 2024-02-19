@@ -112,6 +112,7 @@ def load_orig_products(file: TextIO) -> List[Product]:
             spatial_resolution=line["Spatial Resolution"] or None,
             temporal_resolution=line["Temporal Resolution"] or None,
             collection=line["Collection"] or None,
+            provider=line["Consortium"] or None
         )
         for line in csv.DictReader(file)
     ]

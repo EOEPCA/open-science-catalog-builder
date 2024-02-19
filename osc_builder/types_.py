@@ -38,6 +38,7 @@ class Product:
     temporal_resolution: Optional[str] = None
     # TODO new
     collection: Optional[str] = None
+    provider: Optional[str] = None
 
 
 @dataclass

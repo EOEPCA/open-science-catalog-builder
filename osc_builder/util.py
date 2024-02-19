@@ -48,11 +48,14 @@ def get_product_segmentation(products=None) -> [ProductSegmentation]:
         themes = list(dict.fromkeys(themes))
         first = list(sorted(list_related_product, key=lambda x: x.start))
         end = list(sorted(list_related_product, key=lambda x: x.end))
+        end = list(reversed(end))
+
         item = ProductSegmentation(
             title=name,
             project=end[0].project,
             themes=themes,
             start=first[0].start,
+            geometry=first[0].geometry,
             end=end[0].end,
             released=first[0].released,
             region=", ".join(regions),
