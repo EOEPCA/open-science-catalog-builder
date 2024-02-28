@@ -8,7 +8,7 @@ from pygeoif import geometry
 from dateutil.parser import parse as parse_datetime
 from slugify import slugify
 
-from .types_ import Contact, Product, Project, Status, Theme, Variable, EOMission
+from .types_ import Contact, Product, Project, Status, Theme, Variable, EOMission, Benchmark
 from .util import parse_decimal_date, get_depth
 
 def get_metadata_column() -> dict:
@@ -18,6 +18,7 @@ def get_metadata_column() -> dict:
         "Projects": 10,
         "Themes": 4,
         "Variables": 4,
+        "Benchmarks": 26,
 
     }
 
@@ -118,6 +119,37 @@ def load_orig_products(file: TextIO) -> List[Product]:
     ]
     return products
 
+def load_orig_benchmarks(file: TextIO) -> List[Benchmark]:
+    benchmarks = [
+        Benchmark(
+            id=line["Short_Name"],
+            website=line.get("Website"),
+            title=line["Benchmark"],
+            description=line["Description"],
+            project=line["Project"],
+            variables=parse_list(line["Variables"]),
+            themes=get_themes(line),
+            access=line["Access"],
+            notebook=line["Notebook"],
+            doi=urlparse(line["DOI"]).path[1:] if line["DOI"] else None,
+            start=_parse_date(line["Start"]),
+            end=_parse_date(line["End"]),
+            geometry=parse_geometry(line["Polygon"]),
+            region=line["Region"] or None,
+            released=parse_released(line["Released"]),
+            eo_missions=parse_list(line["EO_Missions"]),
+            keywords=parse_list(line["Keywords"]) if "Keywords" in line else [],
+            format=line["Format"] or None,
+            category=line["Category"] or None,
+            coordinate=line["Coordinate"] or None,
+            spatial_resolution=line["Spatial Resolution"] or None,
+            temporal_resolution=line["Temporal Resolution"] or None,
+            collection=line["Collection"] or None,
+            provider=line["Consortium"] or None
+        )
+        for line in csv.DictReader(file)
+    ]
+    return benchmarks
 
 def load_orig_projects(file: TextIO) -> List[Project]:
     projects = [
@@ -182,6 +214,7 @@ def validate_csvs(
         missions_file: TextIO,
         projects_file: TextIO,
         products_file: TextIO,
+        benchmarks_file: TextIO,
 ) -> List[str]:
     THEMES = {
         line["theme"].strip(): line for line in csv.DictReader(themes_file)
@@ -200,6 +233,9 @@ def validate_csvs(
     }
     PRODUCTS = {
         line["Product"].strip(): line for line in csv.DictReader(products_file)
+    }
+    BENCHMARKS = {
+        line["Benchmark"].strip(): line for line in csv.DictReader(benchmarks_file)
     }
 
     issues = []
@@ -249,6 +285,15 @@ def validate_csvs(
             but {len(missions_column_names)} got. """
         )
 
+    benchmarks_file.seek(0)
+    benchmarks_file_reader = csv.reader(benchmarks_file)
+    benchmarks_column_names = next(benchmarks_file_reader)
+    if len(benchmarks_column_names) != get_metadata_column()["Benchmarks"]:
+        issues.append(
+            f"""Benchmarks csv file is corrupted, this csv have {get_metadata_column()['Benchmarks']} columns
+                but {len(benchmarks_column_names)} got. """
+        )
+
     for name, variable in VARIABLES.items():
         for theme in parse_list(
                 variable.get("themes") or variable.get("theme")
@@ -258,35 +303,40 @@ def validate_csvs(
                     f"Variable '{name}' references non-existing theme '{theme}'"
                 )
 
-
-    for name, product in PRODUCTS.items():
-        project = product["Project"]
-        if product["Project"] not in PROJECTS:
-            issues.append(
-                f"Product '{name}' references non-existing project '{project}'"
-            )
-
-        if product["Collection"] is None or product["Collection"] == '':
-            issues.append(
-                f"Product '{name}' has not collection linked please add collection for the product"
-            )
-
-        for theme in get_themes(product):
-            if theme not in THEMES:
-                issues.append(
-                    f"Product '{name}' references non-existing theme '{theme}'"
+    def _validate_products(product_interface: dict, element) -> list[str]:
+        _issues = []
+        for name, product in product_interface.items():
+            project = product["Project"]
+            if product["Project"] not in PROJECTS:
+                _issues.append(
+                    f"{element} '{name}' references non-existing project '{project}'"
                 )
 
-        for variable in parse_list(product["Variables"]):
-            if variable not in VARIABLES:
-                issues.append(
-                    f"Product '{name}' references non-existing variable '{variable}'"
+            if product["Collection"] is None or product["Collection"] == '':
+                _issues.append(
+                    f"Product '{name}' has not collection linked please add collection for the product"
                 )
 
-        for mission in parse_list(product["EO_Missions"]):
-            if mission not in MISSIONS:
-                issues.append(
-                    f"Product '{name}' references non-existing mission '{mission}'"
-                )
+            for theme in get_themes(product):
+                if theme not in THEMES:
+                    _issues.append(
+                        f"{element} '{name}' references non-existing theme '{theme}'"
+                    )
+
+            for variable in parse_list(product["Variables"]):
+                if variable not in VARIABLES:
+                    _issues.append(
+                        f"{element} '{name}' references non-existing variable '{variable}'"
+                    )
+
+            for mission in parse_list(product["EO_Missions"]):
+                if mission not in MISSIONS:
+                    _issues.append(
+                        f"{element} '{name}' references non-existing mission '{mission}'"
+                    )
+            return _issues
+
+    issues = issues + _validate_products(PRODUCTS, "Product")
+    issues = issues + _validate_products(BENCHMARKS, "Benchmark")
 
     return issues

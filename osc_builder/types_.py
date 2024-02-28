@@ -104,3 +104,8 @@ class EOMission:
     name: str
     description: Optional[str]
     link: Optional[str]
+
+
+@dataclass
+class Benchmark(Product):
+    pass

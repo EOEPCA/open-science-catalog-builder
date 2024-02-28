@@ -13,13 +13,14 @@ import pystac.utils
 from slugify import slugify
 
 from .metrics import caclulate_metrics
-# from .iso import generate_product_metadata, generate_project_metadata
+
 from .origcsv import (
     load_orig_products,
     load_orig_projects,
     load_orig_themes,
     load_orig_variables,
     load_orig_eo_missions,
+    load_orig_benchmarks,
 )
 from .stac import (
     PROJECT_PROP,
@@ -45,12 +46,7 @@ import time
 if "related" not in pystac.link.HIERARCHICAL_LINKS:
     pystac.link.HIERARCHICAL_LINKS.append("related")
 
-
-# LAYOUT_STRATEGY = pystac.layout.TemplateLayoutStrategy(
-#     item_template="items/${id}/${id}.json",
-#     collection_template="collections/${id}/collection.json",
-# )
-
+from .types_ import Product
 
 def convert_csvs(
         variables_file: TextIO,
@@ -58,6 +54,7 @@ def convert_csvs(
         eo_missions_file: TextIO,
         projects_file: TextIO,
         products_file: TextIO,
+        benchmarks_file: TextIO,
         out_dir: str,
         catalog_url: Optional[str],
 ):
@@ -67,6 +64,8 @@ def convert_csvs(
     projects = load_orig_projects(projects_file)
     products = load_orig_products(products_file)
     segmentation_products = get_product_segmentation(products)
+    benchmarks = load_orig_benchmarks(benchmarks_file)
+    segmentation_benchmarks = get_product_segmentation(benchmarks)
     eo_missions = load_orig_eo_missions(eo_missions_file)
 
     # set root structure
@@ -90,6 +89,13 @@ def convert_csvs(
         "Geoscience products representing the measured or inferred values of one or more variables over a given time range and spatial area",
         "Products",
     )
+
+    benchmarks_catalog = pystac.Catalog(
+        "benchmarks",
+        "Geoscience Benchmarks",
+        "Benchmarks",
+    )
+
     themes_catalog = pystac.Catalog(
         "themes",
         "Earth Science topics related to this project",
@@ -116,6 +122,7 @@ def convert_csvs(
     root.add_child(variables_catalog)
     root.add_child(eo_missions_catalog)
     root.add_child(products_catalog)
+    root.add_child(benchmarks_catalog)
 
     themes_catalog.add_children(
         sorted(
@@ -147,13 +154,25 @@ def convert_csvs(
             key=lambda collection: collection.id,
         )
     )
+    benchmarks_catalog.add_children(
+        sorted(
+            (collection_from_segmentation_product(parent) for parent in segmentation_benchmarks),
+            key=lambda collection: collection.id,
+        )
+    )
 
-    for line_product in products:
-        parent: list[pystac.Catalog] = list(filter(lambda x: x.title == line_product.collection, products_catalog.get_children()))
-        if len(parent) != 0:
-            parent[0].add_child(collection_from_product(line_product))
-        else:
-            products_catalog.add_child(collection_from_product(line_product))
+    def _link_sub_product(catalog: pystac.Catalog, products_interface: list[Product]) -> None:
+        for line_product in products_interface:
+            parent: list[pystac.Catalog] = list(
+                filter(lambda x: x.title == line_product.collection, catalog.get_children()))
+            if len(parent) != 0:
+                parent[0].add_child(collection_from_product(line_product))
+            else:
+                catalog.add_child(collection_from_product(line_product))
+
+    _link_sub_product(products_catalog, products)
+    _link_sub_product(benchmarks_catalog, benchmarks)
+
     # save catalog
     root.normalize_and_save(out_dir, pystac.CatalogType.SELF_CONTAINED)
 
@@ -305,6 +324,7 @@ def make_collection_assets_absolute(collection: pystac.Collection):
 
 def link_collections(
     product_collections: Iterable[pystac.Collection],
+    benchmark_collections: Iterable[pystac.Collection],
     project_collections: Iterable[pystac.Collection],
     theme_catalogs: Iterable[pystac.Catalog],
     variable_catalogs: Iterable[pystac.Catalog],
@@ -351,60 +371,67 @@ def link_collections(
             ]
         )
 
+    def _links_all_products(product_interface_collections:Iterable[pystac.Collection])-> None:
+        for product_collection in product_interface_collections:
+            # product -> project
+            project_collection = project_map[
+                slugify(product_collection.extra_fields[PROJECT_PROP])
+            ]
+            product_collection.add_link(
+                pystac.Link(
+                    rel="related",
+                    target=project_collection,
+                    media_type="application/json",
+                    title=f"Project: {project_collection.title}",
+                )
+            )
+            project_collection.add_child(product_collection, set_parent=True)
+
+            # product -> themes
+            for theme_name in get_theme_names(product_collection):
+                theme_catalog = themes_map[get_theme_id(theme_name)]
+                product_collection.add_link(
+                    pystac.Link(
+                        rel="related",
+                        target=theme_catalog,
+                        media_type="application/json",
+                        title=f"Theme: {theme_catalog.title}",
+                    )
+                )
+                theme_catalog.add_child(product_collection, set_parent=True)
+
+            # product -> variables
+            for variable_name in product_collection.extra_fields[VARIABLES_PROP]:
+                variable_catalog = variables_map[get_variable_id(variable_name)]
+                product_collection.add_link(
+                    pystac.Link(
+                        rel="related",
+                        target=variable_catalog,
+                        media_type="application/json",
+                        title=f"Variable: {variable_catalog.title}",
+                    )
+                )
+                variable_catalog.add_child(product_collection, set_parent=True)
+
+            # product -> eo mission
+            for eo_mission in product_collection.extra_fields[MISSIONS_PROP]:
+                eo_mission_catalog = eo_missions_map[get_eo_mission_id(eo_mission)]
+                product_collection.add_link(
+                    pystac.Link(
+                        rel="related",
+                        target=eo_mission_catalog,
+                        media_type="application/json",
+                        title=f"EO Mission: {eo_mission_catalog.title}",
+                    )
+                )
+                eo_mission_catalog.add_child(product_collection, set_parent=True)
+
+
     # link products
-    for product_collection in product_collections:
-        # product -> project
-        project_collection = project_map[
-            slugify(product_collection.extra_fields[PROJECT_PROP])
-        ]
-        product_collection.add_link(
-            pystac.Link(
-                rel="related",
-                target=project_collection,
-                media_type="application/json",
-                title=f"Project: {project_collection.title}",
-            )
-        )
-        project_collection.add_child(product_collection, set_parent=True)
+    _links_all_products(product_collections)
 
-        # product -> themes
-        for theme_name in get_theme_names(product_collection):
-            theme_catalog = themes_map[get_theme_id(theme_name)]
-            product_collection.add_link(
-                pystac.Link(
-                    rel="related",
-                    target=theme_catalog,
-                    media_type="application/json",
-                    title=f"Theme: {theme_catalog.title}",
-                )
-            )
-            theme_catalog.add_child(product_collection, set_parent=True)
-
-        # product -> variables
-        for variable_name in product_collection.extra_fields[VARIABLES_PROP]:
-            variable_catalog = variables_map[get_variable_id(variable_name)]
-            product_collection.add_link(
-                pystac.Link(
-                    rel="related",
-                    target=variable_catalog,
-                    media_type="application/json",
-                    title=f"Variable: {variable_catalog.title}",
-                )
-            )
-            variable_catalog.add_child(product_collection, set_parent=True)
-
-        # product -> eo mission
-        for eo_mission in product_collection.extra_fields[MISSIONS_PROP]:
-            eo_mission_catalog = eo_missions_map[get_eo_mission_id(eo_mission)]
-            product_collection.add_link(
-                pystac.Link(
-                    rel="related",
-                    target=eo_mission_catalog,
-                    media_type="application/json",
-                    title=f"EO Mission: {eo_mission_catalog.title}",
-                )
-            )
-            eo_mission_catalog.add_child(product_collection, set_parent=True)
+    # link benchmark
+    _links_all_products(benchmark_collections)
 
 
 # TODO: apply keywords
@@ -433,6 +460,7 @@ def build_dist(
 
     link_collections(
         root.get_child("products").get_children(),
+        root.get_child("benchmarks").get_children(),
         root.get_child("projects").get_children(),
         root.get_child("themes").get_children(),
         root.get_child("variables").get_children(),
@@ -443,6 +471,7 @@ def build_dist(
     from itertools import chain
     catalogs = chain(
         root.get_child("products").get_children(),
+        root.get_child("benchmarks").get_children(),
         root.get_child("projects").get_children(),
         root.get_child("themes").get_children(),
         root.get_child("variables").get_children(),
