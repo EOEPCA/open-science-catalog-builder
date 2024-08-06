@@ -184,7 +184,7 @@ class CollectionOSCExtension(OSCExtension[pystac.Collection]):
                 "name": consortium_member,
                 "role": "consortium_member",
             })
-        
+
         self.properties.update(
             {
                 "title": project.title,
@@ -288,6 +288,14 @@ def collection_from_product(product: Product) -> pystac.Collection:
             collection, True
         )
         sci_ext.apply(product.doi)
+        # Manually set the link title
+        for link in collection.links:
+            if (
+                link.rel == pystac.extensions.scientific.ScientificRelType.CITE_AS
+                and link.title is None
+            ):
+                link.title = "DOI"
+
     return collection
 
 
